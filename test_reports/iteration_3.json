@@ -1,0 +1,41 @@
+{
+  "summary": "Ran the backend regression suite and focused browser auth checks. All six backend tests passed; normal load, email login, logout, and invalid Google rejection worked. Invalid Google callback leaves session_id in the URL hash.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Invalid Google OAuth callback",
+        "issue": "When /#session_id=invalid-test-session is exchanged and rejected, App.js handles the catch but does not call history.replaceState; the session_id remains in the browser URL while the user is unauthenticated.",
+        "affected_selectors": ["[data-testid=login-heading]", "[data-testid=google-login-button]"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results_current.xml"
+  ],
+  "action_items": [
+    "Clear the URL hash in the Google session exchange failure path as well as the success path.",
+    "Retest a real provider-issued Google callback after the hash cleanup; this run could not obtain a valid provider session_id."
+  ],
+  "critical_code_review_comments": [
+    "AppContent only stores the Google exchange error in notice state, which is not rendered by Login when the exchange fails before a user exists; consider showing a visible login error while also removing the callback hash."
+  ],
+  "updated_files": [
+    "/app/test_reports/iteration_3.json"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "67%"
+  },
+  "seed_data_creation": "Used the configured test account and the existing real database; the regression test created a temporary appointment and cancelled it. No mocked APIs were used.",
+  "retest_needed": true,
+  "should_call_test_agent_after_fix": true,
+  "context_for_next_testing_agent": "Backend auth, protected appointments, booking persistence, reschedule, payment, cancellation, logout, and invalid Google session API all passed. Email login and normal app load passed. Invalid callback rejection passed but URL hash cleanup failed. A real valid Google callback remains unverified because no provider session credential was available.",
+  "rca of the issue": "In App.js, the session_id effect calls api('/auth/google/session'). The .then branch calls history.replaceState, but the .catch branch only sets notice and the .finally branch only changes loading. Therefore a rejected callback retains the OAuth session_id in window.location.hash; additionally, notice is not rendered by Login when user is null."
+}

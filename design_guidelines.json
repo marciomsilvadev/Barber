@@ -1,0 +1,81 @@
+{
+  "typography": {
+    "heading_font": "Playfair Display",
+    "body_font": "Montserrat",
+    "weights": {
+      "light": 300,
+      "regular": 400,
+      "medium": 500,
+      "bold": 700,
+      "black": 900
+    },
+    "letter_spacing": {
+      "heading": "-0.03em",
+      "label": "0.15em"
+    }
+  },
+  "colors": {
+    "archetype": "LUXURY & PERFORMANCE",
+    "palette": {
+      "primary_dark": "#0A0A0A",
+      "surface_dark": "#141414",
+      "card_dark": "#1A1A1A",
+      "border_dark": "#2E2E2E",
+      "gold_accent": "#D4AF37",
+      "gold_hover": "#E5C158",
+      "gold_muted": "rgba(212, 175, 55, 0.15)",
+      "pure_white": "#FFFFFF",
+      "muted_text": "#A3A3A3",
+      "success": "#10B981",
+      "error": "#EF4444"
+    }
+  },
+  "visual_enhancers": {
+    "glassmorphism": "backdrop-blur-xl bg-[#0A0A0A]/80 border border-[#D4AF37]/20 shadow-[0_8px_32px_rgba(0,0,0,0.8)]",
+    "gold_glow": "drop-shadow-[0_0_12px_rgba(212,175,55,0.4)]",
+    "border_gold": "border border-[#D4AF37]/30 hover:border-[#D4AF37] transition-colors duration-300",
+    "card_style": "bg-[#141414] border border-[#2E2E2E] rounded-xl p-6"
+  },
+  "grids": {
+    "marketing": "grid-cols-1 md:grid-cols-12 gap-8",
+    "dashboard": "grid-cols-1 md:grid-cols-4 gap-6",
+    "bento": "grid grid-cols-1 md:grid-cols-12 gap-6"
+  },
+  "motion": {
+    "transition_default": "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+    "hover_lift": "hover:-translate-y-1 transition-transform duration-300"
+  },
+  "accessibility": {
+    "apca_compliant": true,
+    "focus_ring": "focus:ring-2 focus:ring-[#D4AF37] focus:outline-none"
+  },
+  "image_urls": [
+    {
+      "category": "hero_salon_interior",
+      "url": "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1ODR8MHwxfHNlYXJjaHwxfHxiYXJiZXIlMjBzaG9wJTIwbHV4dXJ5JTIwaW50ZXJpb3IlMjBncm9vbWluZ3xlbnwwfHx8fDE3OTA5MDk2MTl8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Luxurious barber shop interior with black leather chair and warm atmospheric lighting"
+    },
+    {
+      "category": "barber_action_1",
+      "url": "https://images.unsplash.com/photo-1647140655214-e4a2d914971f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODh8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBiYXJiZXIlMjBoYWlyY3V0JTIwcG9ydHJhaXR8ZW58MHx8fHwxNzkwOTA5NjIwfDA&ixlib=rb-4.1.0&q=85",
+      "description": "Professional master barber precision haircut with scissors"
+    },
+    {
+      "category": "barber_action_2",
+      "url": "https://images.unsplash.com/photo-1635273051839-003bf06a8751?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODh8MHwxfHNlYXJjaHwzfHxwcm9mZXNzaW9uYWwlMjBiYXJiZXIlMjBoYWlyY3V0JTIwcG9ydHJhaXR8ZW58MHx8fHwxNzkwOTA5NjIwfDA&ixlib=rb-4.1.0&q=85",
+      "description": "Close up clipper fade styling by expert barber"
+    },
+    {
+      "category": "salon_ambiance",
+      "url": "https://images.unsplash.com/photo-1536520002442-39764a41e987?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1ODR8MHwxfHNlYXJjaHwyfHxiYXJiZXIlMjBzaG9wJTIwbHV4dXJ5JTIwaW50ZXJpb3IlMjBncm9vbWluZ3xlbnwwfHx8fDE3OTA5MDk2MTl8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Atmospheric pendant lighting over luxury styling stations"
+    }
+  ],
+  "universal_guidelines_for_main_agent": [
+    "Ensure all interactive elements and buttons include testid attributes (e.g. data-testid='booking-submit-btn').",
+    "Never use full transparency for headers or dropdowns over content; use backdrop-blur and solid dark backgrounds with gold borders.",
+    "Maintain strict adherence to the classic luxury dark theme: #0A0A0A background, #141414 cards, #D4AF37 gold accents, and pure white/muted text.",
+    "Provide seamless tabs/views for Client Portal (Bookings, History, Remchedule/Cancel), Barber Profile Management, and Stripe Checkout Simulation.",
+    "Include Google Social Login simulation and traditional Email/Password authentication."
+  ]
+}

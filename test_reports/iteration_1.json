@@ -1,0 +1,58 @@
+{
+  "summary": "Backend regression and live browser testing completed. All six API tests passed; login, barber browsing, booking, payment, history, responsive rendering, and desktop logout were exercised. UI gaps remain for post-booking navigation, appointment management, and mobile logout.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Mobile sidebar",
+        "issue": "Logout is hidden at the mobile breakpoint, leaving no visible way to end the authenticated session on mobile.",
+        "selector": "[data-testid=logout-button]",
+        "priority": "HIGH"
+      },
+      {
+        "component": "Appointment history cards",
+        "issue": "No Remarcar or Cancelar controls are rendered, although both are required client flows and backend endpoints exist.",
+        "selector": "[data-testid^=booking-card-]",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Create booking then pay",
+        "issue": "Booking creation leaves active navigation on the barber list. The user must discover and click Minha agenda before the payment action becomes available.",
+        "affected_selectors": ["[data-testid=booking-submit-button]", "[data-testid=nav-booking-button]", "[data-testid^=pay-booking-]"]
+      },
+      {
+        "flow": "Create booking barber association",
+        "issue": "BookingModal submits barber.name as barber_id instead of the barber's canonical barber_id (for example, Enzo Martins instead of enzo).",
+        "affected_selectors": ["[data-testid=booking-submit-button]"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Add reschedule and cancel actions to appointment cards and connect them to PATCH/DELETE endpoints.",
+    "Keep logout accessible on mobile, such as an account menu or visible sidebar action.",
+    "Navigate to the agenda after successful booking or expose payment directly in the success state.",
+    "Pass barber.barber_id from the booking modal rather than barber.name.",
+    "Retest Google OAuth callback/session exchange with a valid provider session when available."
+  ],
+  "critical_code_review_comments": [
+    "google_session performs blocking requests.get inside an async FastAPI handler; use an async HTTP client or isolate the blocking call before production traffic.",
+    "Frontend API error handling assumes every non-OK response is JSON with detail and can itself throw on non-JSON gateway errors; add robust fallback handling and visible loading/error states for barber and appointment fetches."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "success_rate": {"backend": "100%", "frontend": "75%"},
+  "seed_data_creation": "No seed data created by the test suite; one appointment was created through the real UI/API flow and left in the configured test account history.",
+  "retest_needed": true,
+  "should_call_test_agent_after_fix": true,
+  "context_for_next_testing_agent": "Use cliente.teste.2026@example.com / atelier123. API lifecycle passed. Focus next run on UI reschedule/cancel, mobile logout, post-booking payment discoverability, canonical barber_id, and valid Google callback exchange.",
+  "rca of the issue": "The appointment component only renders payment state and does not render management actions, despite backend PATCH/DELETE support. BookingModal closes after POST without changing active navigation, so payment is not visible until manual navigation. The mobile CSS explicitly sets .logout to display:none. BookingModal constructs barber_id from barber.name, causing an identifier mismatch with seeded barber records."
+}
