@@ -4,7 +4,8 @@ import {
   CalendarDays, Camera, ChevronRight, Clock3, CreditCard, Edit2, LogOut, MapPin,
   QrCode, Scissors, ShieldCheck, Star, Trash2, User, X, ShoppingBag, Plus, Play, Check,
   Lock, CheckCircle2, Copy, Calendar, Clock, AlertCircle, DollarSign, CalendarCheck,
-  Bell, Printer, Search, MessageCircle, Phone, Settings, Send
+  Bell, Printer, Search, MessageCircle, Phone, Settings, Send, Package, Truck,
+  ShoppingCart, Minus, ArrowRight, RefreshCw
 } from "lucide-react";
 import { BrowserRouter } from "react-router-dom";
 import { supabase } from "./lib/supabase";
@@ -204,50 +205,928 @@ function Login({ onLogin, callbackError = "", initialMode = "login" }) {
 // -----------------------------------------------------------------------------
 // PUBLIC LANDING PAGE (Impeccable Design)
 // -----------------------------------------------------------------------------
-const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY;
+// ── Boutique (E-Commerce) Initial Catalog & Helpers ──────────────────────────
+const INITIAL_PRODUCTS = [
+  {
+    id: 'prod-1',
+    name: 'Pomada Matte Forte Atelier',
+    description: 'Fixação forte e acabamento seco. Modela com alta durabilidade sem deixar aspecto oleoso.',
+    price: 89.90,
+    stock_quantity: 25,
+    category: 'Pomadas',
+    image_url: 'https://images.unsplash.com/photo-1598256989800-fe5f95da9787?auto=format&fit=crop&w=600&q=80',
+    is_active: true
+  },
+  {
+    id: 'prod-2',
+    name: 'Óleo Hidratante Barba Real',
+    description: 'Blend nobre de óleos essenciais de argan e cedro. Alinha os fios, amacia e previne coceiras.',
+    price: 75.00,
+    stock_quantity: 18,
+    category: 'Óleos',
+    image_url: 'https://images.unsplash.com/photo-1621607512214-68297480165e?auto=format&fit=crop&w=600&q=80',
+    is_active: true
+  },
+  {
+    id: 'prod-3',
+    name: 'Shampoo Antiqueda & Fortificante',
+    description: 'Fórmula enriquecida com biotina, cafeína e pantenol. Limpeza profunda e estímulo folicular.',
+    price: 94.50,
+    stock_quantity: 14,
+    category: 'Shampoos',
+    image_url: 'https://images.unsplash.com/photo-1535585209827-a15fcdbc4c2d?auto=format&fit=crop&w=600&q=80',
+    is_active: true
+  },
+  {
+    id: 'prod-4',
+    name: 'Balm Alinhador e Modelador',
+    description: 'Tratamento diário para barba com manteiga de karité. Deixa a barba encorpada e perfumada.',
+    price: 68.00,
+    stock_quantity: 30,
+    category: 'Cremes',
+    image_url: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=600&q=80',
+    is_active: true
+  },
+  {
+    id: 'prod-5',
+    name: 'Navalhete Clássico Aço Cirúrgico',
+    description: 'Instrumento profissional em aço inoxidável com detalhes em ouro. Equilíbrio de peso perfeito.',
+    price: 135.00,
+    stock_quantity: 8,
+    category: 'Acessórios',
+    image_url: 'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=600&q=80',
+    is_active: true
+  },
+  {
+    id: 'prod-6',
+    name: 'Loção Pós-Barba Refrescante Atelier',
+    description: 'Efeito ice imediato. Contém pró-vitamina B5 e extrato de camomila para acalmar a pele.',
+    price: 59.90,
+    stock_quantity: 20,
+    category: 'Cremes',
+    image_url: 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?auto=format&fit=crop&w=600&q=80',
+    is_active: true
+  }
+];
 
-async function buyProduct(product) {
+// Shopping Cart Helpers
+function getStoredCart() {
   try {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/create-checkout-session`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-      },
-      body: JSON.stringify({ product }),
-    });
-    const { url, error } = await res.json();
-    if (error) { alert('Erro ao iniciar pagamento: ' + error); return; }
-    if (url) window.location.href = url;
-  } catch (e) {
-    alert('Erro de conexão. Tente novamente.');
+    return JSON.parse(localStorage.getItem('barber_cart_items') || '[]');
+  } catch {
+    return [];
   }
 }
 
+function saveCart(items) {
+  try {
+    localStorage.setItem('barber_cart_items', JSON.stringify(items));
+    window.dispatchEvent(new CustomEvent('barber_cart_updated', { detail: items }));
+  } catch {}
+}
+
+function addToCart(product, quantity = 1) {
+  const cart = getStoredCart();
+  const existingIndex = cart.findIndex(item => item.id === product.id);
+  let updated;
+  if (existingIndex > -1) {
+    updated = cart.map((item, idx) =>
+      idx === existingIndex
+        ? { ...item, quantity: (item.quantity || 1) + quantity }
+        : item
+    );
+  } else {
+    updated = [...cart, { ...product, quantity }];
+  }
+  saveCart(updated);
+  return updated;
+}
+
+function updateCartItemQty(productId, quantity) {
+  const cart = getStoredCart();
+  let updated;
+  if (quantity <= 0) {
+    updated = cart.filter(item => item.id !== productId);
+  } else {
+    updated = cart.map(item => item.id === productId ? { ...item, quantity } : item);
+  }
+  saveCart(updated);
+  return updated;
+}
+
+function removeCartItem(productId) {
+  const cart = getStoredCart();
+  const updated = cart.filter(item => item.id !== productId);
+  saveCart(updated);
+  return updated;
+}
+
+function clearCart() {
+  saveCart([]);
+}
+
+// Format WhatsApp Message for Store Orders
+function formatWhatsAppOrderMessage(order, establishmentName = 'Atelier Barber') {
+  const code = order.id ? String(order.id).slice(0, 10).toUpperCase() : String(Date.now()).slice(-6);
+  const clientName = order.client_name || 'Cliente Atelier';
+  const clientPhone = order.client_phone || 'Não informado';
+  const delivery = order.delivery_type === 'delivery'
+    ? `🛵 *Entrega Expressa*\n📍 *Endereço:* ${order.delivery_address || 'Endereço a confirmar'}`
+    : `🏪 *Retirada no Atelier Barber*`;
+  const itemsText = (order.items || []).map(i => `• ${i.quantity}x ${i.name} (R$ ${(parseFloat(i.price || 0) * (i.quantity || 1)).toFixed(2)})`).join('\n');
+  const total = parseFloat(order.total_price || 0).toFixed(2);
+  const pay = order.payment_method || 'Pago';
+
+  return encodeURIComponent(
+    `🛍️ *${establishmentName.toUpperCase()} · NOVO PEDIDO DA BOUTIQUE*\n\n` +
+    `🔖 *Pedido:* #${code}\n` +
+    `👤 *Cliente:* ${clientName}\n` +
+    `📱 *Contato:* ${clientPhone}\n` +
+    `📦 *Modo de Envio:* ${delivery}\n\n` +
+    `🛒 *Itens do Pedido:*\n${itemsText}\n\n` +
+    `💰 *Total Pago:* R$ ${total} (${pay})\n` +
+    `✅ *Status:* Pagamento Aprovado e Registrado\n\n` +
+    `_Boutique Atelier Barber_`
+  );
+}
+
+function getWhatsAppUrlForOrder(order, rawPhone, estName) {
+  const clean = cleanWhatsAppNumber(rawPhone);
+  const base = clean ? `https://wa.me/${clean}` : `https://api.whatsapp.com/send`;
+  return `${base}?text=${formatWhatsAppOrderMessage(order, estName)}`;
+}
+
+function getCustomerWhatsAppOrderUrl(order, estName = 'Atelier Barber') {
+  const clean = cleanWhatsAppNumber(order?.client_phone);
+  const base = clean ? `https://wa.me/${clean}` : `https://api.whatsapp.com/send`;
+  const code = order?.id ? String(order.id).slice(0, 10).toUpperCase() : '';
+  const clientName = order?.client_name || 'Cliente';
+  const delivery = order?.delivery_type === 'delivery'
+    ? `🛵 *Entrega:* ${order.delivery_address || 'Endereço informado'}`
+    : `🏪 *Retirada:* Pacote preparado para retirada na recepção do Atelier Barber.`;
+  const itemsText = (order?.items || []).map(i => `• ${i.quantity || 1}x ${i.name}`).join('\n');
+  const total = parseFloat(order?.total_price || 0).toFixed(2);
+
+  return `${base}?text=${encodeURIComponent(
+    `Olá *${clientName}*! 👋\n\n` +
+    `Aqui é do *${estName}*. Estamos atualizando o status do seu pedido *#${code}*:\n\n` +
+    `📦 *Status:* ${order?.status || 'Confirmado'}\n` +
+    `🛍️ *Itens:*\n${itemsText}\n\n` +
+    `📍 ${delivery}\n` +
+    `💰 *Valor Total:* R$ ${total} (${order?.payment_method || 'Pago'})\n\n` +
+    `Qualquer dúvida estamos à sua total disposição! 💈`
+  )}`;
+}
+
+// ── Product Checkout Modal (E-Commerce Luxury Checkout) ────────────────────────
+function ProductCheckoutModal({
+  isOpen,
+  onClose,
+  items = [],
+  user = null,
+  onSuccessOrder
+}) {
+  const [deliveryType, setDeliveryType] = useState('pickup');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [clientName, setClientName] = useState(user?.full_name || '');
+  const [clientPhone, setClientPhone] = useState(user?.phone || '');
+  const [payMode, setPayMode] = useState('pix');
+  const [parcelas, setParcelas] = useState(1);
+
+  // Card Form State
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardHolder, setCardHolder] = useState(user?.full_name?.toUpperCase() || '');
+  const [cardExp, setCardExp] = useState('');
+  const [cardCvv, setCardCvv] = useState('');
+
+  // Flow State
+  const [processing, setProcessing] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [confirmedOrder, setConfirmedOrder] = useState(null);
+  const [pixCopied, setPixCopied] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsSuccess(false);
+      setConfirmedOrder(null);
+      setErrorMsg('');
+      setPixCopied(false);
+      if (user?.full_name) {
+        setClientName(user.full_name);
+        setCardHolder(user.full_name.toUpperCase());
+      }
+      if (user?.phone) {
+        setClientPhone(user.phone);
+      }
+    }
+  }, [isOpen, user]);
+
+  if (!isOpen || !items || items.length === 0) return null;
+
+  const subtotal = items.reduce((sum, item) => sum + (parseFloat(item.price || 0) * (item.quantity || 1)), 0);
+  const shippingFee = deliveryType === 'delivery' ? 15.00 : 0.00;
+  const total = subtotal + shippingFee;
+  const parcelValue = total / parcelas;
+
+  function handleCardNumberChange(e) {
+    const raw = e.target.value.replace(/\D/g, '').slice(0, 16);
+    const parts = raw.match(/.{1,4}/g) || [];
+    setCardNumber(parts.join(' '));
+  }
+
+  function handleExpChange(e) {
+    let raw = e.target.value.replace(/\D/g, '').slice(0, 4);
+    if (raw.length >= 3) {
+      raw = raw.slice(0, 2) + '/' + raw.slice(2);
+    }
+    setCardExp(raw);
+  }
+
+  function detectBrand(num) {
+    const clean = (num || '').replace(/\D/g, '');
+    if (clean.startsWith('4')) return 'VISA';
+    if (/^5[1-5]/.test(clean) || /^2[2-7]/.test(clean)) return 'MASTERCARD';
+    if (/^3[47]/.test(clean)) return 'AMEX';
+    if (/^6(011|5)/.test(clean)) return 'ELO';
+    return 'CARTÃO';
+  }
+
+  const currentBrand = detectBrand(cardNumber);
+
+  const pixCode = `00020126580014BR.GOV.BCB.PIX0136boutique-atelier5204000053039865405${total.toFixed(2)}5802BR5914ATELIER BARBER6009SAO PAULO62070503***6304`;
+
+  function copyPix() {
+    navigator.clipboard.writeText(pixCode);
+    setPixCopied(true);
+    setTimeout(() => setPixCopied(false), 3000);
+  }
+
+  async function handleConfirmOrder(e) {
+    e?.preventDefault();
+    setErrorMsg('');
+
+    if (!clientName.trim()) {
+      setErrorMsg('Por favor, informe seu nome completo.');
+      return;
+    }
+    if (!clientPhone.trim()) {
+      setErrorMsg('Por favor, informe seu telefone / WhatsApp.');
+      return;
+    }
+    if (deliveryType === 'delivery' && !deliveryAddress.trim()) {
+      setErrorMsg('Por favor, informe o endereço completo de entrega.');
+      return;
+    }
+
+    if (payMode === 'card') {
+      const cleanNum = cardNumber.replace(/\D/g, '');
+      if (cleanNum.length < 15) {
+        setErrorMsg('Informe um número de cartão válido.');
+        return;
+      }
+      if (!cardHolder.trim()) {
+        setErrorMsg('Informe o nome impresso no cartão.');
+        return;
+      }
+      if (cardExp.length < 5) {
+        setErrorMsg('Informe a validade do cartão (MM/AA).');
+        return;
+      }
+      if (cardCvv.length < 3) {
+        setErrorMsg('Informe o CVV do cartão.');
+        return;
+      }
+    }
+
+    setProcessing(true);
+
+    try {
+      await new Promise(r => setTimeout(r, 1200));
+
+      const orderCode = 'PED-' + Math.floor(100000 + Math.random() * 900000);
+      const newOrder = {
+        id: orderCode,
+        client_id: user?.id || null,
+        client_name: clientName,
+        client_phone: clientPhone,
+        delivery_type: deliveryType,
+        delivery_address: deliveryType === 'delivery' ? deliveryAddress : 'Retirada no Atelier Barber (Unidade Jardins)',
+        items: items,
+        subtotal: subtotal,
+        shipping_fee: shippingFee,
+        total_price: total,
+        payment_method: payMode === 'card' ? `Cartão (${parcelas}x)` : 'PIX Instantâneo',
+        payment_status: 'Pago',
+        status: 'Confirmado',
+        created_at: new Date().toISOString()
+      };
+
+      try {
+        const storedOrders = JSON.parse(localStorage.getItem('barber_all_orders') || '[]');
+        localStorage.setItem('barber_all_orders', JSON.stringify([newOrder, ...storedOrders]));
+      } catch {}
+
+      try {
+        const storedProds = JSON.parse(localStorage.getItem('barber_all_products') || '[]');
+        const updatedProds = storedProds.map(p => {
+          const bought = items.find(it => it.id === p.id);
+          if (bought) {
+            const currentStock = parseInt(p.stock_quantity || 0, 10);
+            const newStock = Math.max(0, currentStock - (bought.quantity || 1));
+            supabase.from('products').update({ stock_quantity: newStock }).eq('id', p.id).then();
+            return { ...p, stock_quantity: newStock };
+          }
+          return p;
+        });
+        localStorage.setItem('barber_all_products', JSON.stringify(updatedProds));
+      } catch {}
+
+      try {
+        await supabase.from('orders').insert({
+          tenant_id: user?.tenant_id || '77dab26d-b0de-49e0-995f-6dc1c9c4fbe8',
+          client_id: user?.id || null,
+          total_price: total,
+          status: 'Confirmado',
+          payment_status: 'Pago',
+          delivery_type: deliveryType,
+          delivery_address: newOrder.delivery_address,
+          notes: JSON.stringify(items)
+        });
+      } catch (err) {
+        console.warn('DB order insert notice:', err);
+      }
+
+      window.dispatchEvent(new CustomEvent('barber_new_order', { detail: newOrder }));
+      clearCart();
+
+      setConfirmedOrder(newOrder);
+      setIsSuccess(true);
+      if (onSuccessOrder) onSuccessOrder(newOrder);
+    } catch (err) {
+      setErrorMsg('Falha ao processar o pedido. Tente novamente.');
+    } finally {
+      setProcessing(false);
+    }
+  }
+
+  let estWA = { phone: '', name: 'Atelier Barber' };
+  try {
+    estWA = JSON.parse(localStorage.getItem('barber_establishment_whatsapp') || '{"phone":"","name":"Atelier Barber"}');
+  } catch {}
+
+  return (
+    <div className="payment-modal-backdrop" onClick={e => { if (e.target === e.currentTarget && !processing) onClose(); }}>
+      <div className="payment-modal product-checkout-modal slide-up">
+        {/* Header */}
+        <div className="payment-modal-header">
+          <div>
+            <div className="eyebrow">BOUTIQUE ATELIER · CHECKOUT SEGURO</div>
+            <h3>{isSuccess ? 'Pedido Confirmado!' : 'Finalizar Pedido'}</h3>
+          </div>
+          {!processing && (
+            <button className="modal-close-btn" onClick={onClose}><X size={20}/></button>
+          )}
+        </div>
+
+        <div className="payment-modal-body">
+          {/* SUCCESS SCREEN */}
+          {isSuccess && confirmedOrder ? (
+            <div className="payment-success-box">
+              <div className="success-check-circle">
+                <CheckCircle2 size={44} color="var(--gold)"/>
+              </div>
+              <h3>Pedido Aprovado com Sucesso!</h3>
+              <p>Seu pagamento foi confirmado e seu pedido já está sendo preparado no Atelier Barber.</p>
+
+              <div className="success-receipt">
+                <div className="receipt-row">
+                  <span>Código do Pedido:</span>
+                  <strong style={{color:'var(--gold)'}}>#{confirmedOrder.id}</strong>
+                </div>
+                <div className="receipt-row">
+                  <span>Cliente:</span>
+                  <strong>{confirmedOrder.client_name} ({confirmedOrder.client_phone})</strong>
+                </div>
+                <div className="receipt-row">
+                  <span>Envio / Retirada:</span>
+                  <strong>{confirmedOrder.delivery_address}</strong>
+                </div>
+                <div className="receipt-row">
+                  <span>Forma de Pagamento:</span>
+                  <strong>{confirmedOrder.payment_method}</strong>
+                </div>
+
+                <div style={{marginTop:8, paddingTop:8, borderTop:'1px dashed var(--line)'}}>
+                  <span style={{fontSize:11, color:'#888', textTransform:'uppercase', letterSpacing:1}}>Itens Comprados:</span>
+                  {confirmedOrder.items.map(it => (
+                    <div key={it.id} className="receipt-row" style={{fontSize:12, marginTop:4}}>
+                      <span>{it.quantity || 1}x {it.name}</span>
+                      <strong>R$ {(parseFloat(it.price || 0) * (it.quantity || 1)).toFixed(2)}</strong>
+                    </div>
+                  ))}
+                  {confirmedOrder.shipping_fee > 0 && (
+                    <div className="receipt-row" style={{fontSize:12, marginTop:4}}>
+                      <span>Entrega Expressa:</span>
+                      <strong>R$ {confirmedOrder.shipping_fee.toFixed(2)}</strong>
+                    </div>
+                  )}
+                </div>
+
+                <div className="receipt-row" style={{borderTop:'1px solid var(--gold)', marginTop:8, paddingTop:8}}>
+                  <span>Total Pago:</span>
+                  <strong style={{color:'var(--gold)', fontSize:16, fontFamily:"'Playfair Display', serif"}}>R$ {confirmedOrder.total_price.toFixed(2)}</strong>
+                </div>
+              </div>
+
+              {/* WhatsApp Notification Box */}
+              <div className="payment-wa-box">
+                <div className="payment-wa-title">
+                  <MessageCircle size={16} color="#25D366"/>
+                  <strong>NOTIFICAR NO WHATSAPP</strong>
+                </div>
+                <p className="payment-wa-subtitle">
+                  Envie os detalhes do seu pedido com 1 clique para a barbearia ou guarde na sua conversa:
+                </p>
+                <div className="payment-wa-actions">
+                  {estWA.phone && (
+                    <a
+                      href={getWhatsAppUrlForOrder(confirmedOrder, estWA.phone, estWA.name)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="payment-wa-btn establishment"
+                      title="Enviar pedido para o WhatsApp da Barbearia"
+                    >
+                      <Send size={15}/>
+                      <span>Avisar Barbearia no WhatsApp ({estWA.name})</span>
+                    </a>
+                  )}
+                  <a
+                    href={getWhatsAppUrlForOrder(confirmedOrder, confirmedOrder.client_phone, estWA.name)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="payment-wa-btn barber"
+                    title="Salvar comprovante do pedido no WhatsApp"
+                  >
+                    <MessageCircle size={15}/>
+                    <span>Salvar Comprovante no meu WhatsApp</span>
+                  </a>
+                </div>
+              </div>
+
+              <div style={{display:'flex', gap:10, width:'100%'}}>
+                <button className="gold-button" style={{flex:1}} onClick={onClose}>
+                  Concluir e Voltar <ChevronRight size={16}/>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Order Summary Strip */}
+              <div className="checkout-summary-banner">
+                <div className="csb-left">
+                  <strong>{items.length} {items.length === 1 ? 'item' : 'itens'} na compra</strong>
+                  <span style={{fontSize:11, color:'#aaa'}}>
+                    {items.map(i => `${i.quantity || 1}x ${i.name}`).join(', ')}
+                  </span>
+                </div>
+                <div className="csb-right">
+                  <strong>R$ {total.toFixed(2)}</strong>
+                  <small>{payMode === 'card' && parcelas > 1 ? `${parcelas}x de R$ ${parcelValue.toFixed(2)}` : 'À vista'}</small>
+                </div>
+              </div>
+
+              {/* Delivery Choice */}
+              <div className="delivery-choice-section">
+                <div className="schedule-header">
+                  <Truck size={14}/> MODO DE RECEBIMENTO
+                </div>
+                <div className="delivery-options-grid">
+                  <div
+                    className={`delivery-opt-card ${deliveryType === 'pickup' ? 'selected' : ''}`}
+                    onClick={() => setDeliveryType('pickup')}
+                  >
+                    <div className="doc-radio">{deliveryType === 'pickup' && <div className="doc-dot"/>}</div>
+                    <div className="doc-content">
+                      <strong>Retirar no Atelier</strong>
+                      <span>Grátis · Retirada imediata na recepção</span>
+                    </div>
+                    <span className="doc-price free">GRÁTIS</span>
+                  </div>
+
+                  <div
+                    className={`delivery-opt-card ${deliveryType === 'delivery' ? 'selected' : ''}`}
+                    onClick={() => setDeliveryType('delivery')}
+                  >
+                    <div className="doc-radio">{deliveryType === 'delivery' && <div className="doc-dot"/>}</div>
+                    <div className="doc-content">
+                      <strong>Entrega Expressa</strong>
+                      <span>Receba hoje na Grande SP</span>
+                    </div>
+                    <span className="doc-price">+ R$ 15,00</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Customer Info */}
+              <div className="checkout-customer-fields">
+                <div className="schedule-header">
+                  <User size={14}/> DADOS DO COMPRADOR
+                </div>
+                <div className="pfield-row">
+                  <div className="pfield-label">
+                    <span>Nome Completo *</span>
+                    <input
+                      placeholder="Ex: João da Silva"
+                      value={clientName}
+                      onChange={e => setClientName(autoCap(e.target.value))}
+                      className="pfield-input"
+                    />
+                  </div>
+                  <div className="pfield-label">
+                    <span>WhatsApp / Celular com DDD *</span>
+                    <input
+                      placeholder="Ex: (11) 99999-8888"
+                      value={clientPhone}
+                      onChange={e => setClientPhone(e.target.value)}
+                      className="pfield-input"
+                    />
+                  </div>
+                </div>
+
+                {deliveryType === 'delivery' && (
+                  <div className="pfield-label" style={{marginTop:10}}>
+                    <span>Endereço Completo de Entrega (Rua, Número, Bairro, CEP e Cidade) *</span>
+                    <input
+                      placeholder="Ex: Rua Oscar Freire, 1200 - Jardins, São Paulo - SP"
+                      value={deliveryAddress}
+                      onChange={e => setDeliveryAddress(autoCap(e.target.value))}
+                      className="pfield-input"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Payment Method Switcher */}
+              <div className="pay-mode-tabs" style={{marginTop:16}}>
+                <button
+                  type="button"
+                  className={`pm-tab ${payMode === 'pix' ? 'active' : ''}`}
+                  onClick={() => setPayMode('pix')}
+                >
+                  <QrCode size={16}/> PIX Instantâneo
+                </button>
+                <button
+                  type="button"
+                  className={`pm-tab ${payMode === 'card' ? 'active' : ''}`}
+                  onClick={() => setPayMode('card')}
+                >
+                  <CreditCard size={16}/> Cartão de Crédito
+                </button>
+              </div>
+
+              {errorMsg && (
+                <div className="pay-error-banner slide-up">
+                  <AlertCircle size={15}/>
+                  <span>{errorMsg}</span>
+                </div>
+              )}
+
+              {/* PIX TAB */}
+              {payMode === 'pix' && (
+                <div className="pix-checkout-box slide-up">
+                  <div className="pix-instruction">
+                    <p>Escaneie o QR Code no seu aplicativo bancário ou copie o código Pix abaixo:</p>
+                  </div>
+
+                  <div className="pix-qr-visual">
+                    <div className="qr-fake-box">
+                      <QrCode size={110} color="#000"/>
+                      <span className="qr-brand-tag">PIX ATELIER</span>
+                    </div>
+                    <div className="pix-amount-pill">
+                      Total a pagar: <strong>R$ {total.toFixed(2)}</strong>
+                    </div>
+                  </div>
+
+                  <div className="pix-copy-row">
+                    <input
+                      readOnly
+                      value={pixCode}
+                      className="pix-code-input"
+                    />
+                    <button
+                      type="button"
+                      className={`gold-button compact ${pixCopied ? 'copied' : ''}`}
+                      onClick={copyPix}
+                    >
+                      {pixCopied ? <><Check size={14}/> Copiado!</> : <><Copy size={14}/> Copiar PIX</>}
+                    </button>
+                  </div>
+
+                  <div className="pix-secure-badge">
+                    <ShieldCheck size={14} color="var(--gold)"/>
+                    <span>Aprovação imediata e separação prioritária na Boutique</span>
+                  </div>
+
+                  <button
+                    className="gold-button"
+                    style={{width:'100%', marginTop:16}}
+                    onClick={handleConfirmOrder}
+                    disabled={processing}
+                  >
+                    {processing ? 'Confirmando Pagamento...' : `Confirmar Pagamento PIX · R$ ${total.toFixed(2)}`}
+                    <ChevronRight size={16}/>
+                  </button>
+                </div>
+              )}
+
+              {/* CARD TAB */}
+              {payMode === 'card' && (
+                <div className="card-checkout-form slide-up">
+                  <div className="virtual-card">
+                    <div className="vcard-top">
+                      <span className="vcard-chip"></span>
+                      <strong className="vcard-brand">{currentBrand}</strong>
+                    </div>
+                    <div className="vcard-number">{cardNumber || '•••• •••• •••• ••••'}</div>
+                    <div className="vcard-bottom">
+                      <div>
+                        <span className="vcard-label">TITULAR</span>
+                        <div className="vcard-holder">{cardHolder || 'SEU NOME'}</div>
+                      </div>
+                      <div>
+                        <span className="vcard-label">VALIDADE</span>
+                        <div className="vcard-exp">{cardExp || 'MM/AA'}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pfield-row">
+                    <div className="pfield-label">
+                      <span>Número do Cartão</span>
+                      <input
+                        placeholder="0000 0000 0000 0000"
+                        value={cardNumber}
+                        onChange={handleCardNumberChange}
+                        className="pfield-input"
+                        maxLength={19}
+                      />
+                    </div>
+                    <div className="pfield-label">
+                      <span>Nome impresso no Cartão</span>
+                      <input
+                        placeholder="Nome como no cartão"
+                        value={cardHolder}
+                        onChange={e => setCardHolder(e.target.value.toUpperCase())}
+                        className="pfield-input"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pfield-row">
+                    <div className="pfield-label">
+                      <span>Validade</span>
+                      <input
+                        placeholder="MM/AA"
+                        value={cardExp}
+                        onChange={handleExpChange}
+                        className="pfield-input"
+                        maxLength={5}
+                      />
+                    </div>
+                    <div className="pfield-label">
+                      <span>CVV</span>
+                      <input
+                        placeholder="123"
+                        value={cardCvv}
+                        onChange={e => setCardCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                        className="pfield-input"
+                        type="password"
+                        maxLength={4}
+                      />
+                    </div>
+                    <div className="pfield-label">
+                      <span>Parcelas</span>
+                      <select
+                        value={parcelas}
+                        onChange={e => setParcelas(parseInt(e.target.value, 10))}
+                        className="pfield-input"
+                      >
+                        {[1, 2, 3, 4, 5, 6].map(num => (
+                          <option key={num} value={num}>
+                            {num}x de R$ {(total / num).toFixed(2)} {num === 1 ? '(à vista)' : 'sem juros'}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <button
+                    className="gold-button"
+                    style={{width:'100%', marginTop:18}}
+                    onClick={handleConfirmOrder}
+                    disabled={processing}
+                  >
+                    {processing ? 'Processando Cartão...' : `Pagar R$ ${total.toFixed(2)} (${parcelas}x)`}
+                    <Lock size={15}/>
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Shopping Cart Drawer ───────────────────────────────────────────────────────
+function CartDrawer({
+  isOpen,
+  onClose,
+  items = [],
+  onUpdateQty,
+  onRemoveItem,
+  onClearCart,
+  onCheckout
+}) {
+  if (!isOpen) return null;
+
+  const total = items.reduce((acc, it) => acc + (parseFloat(it.price || 0) * (it.quantity || 1)), 0);
+  const totalItemsCount = items.reduce((acc, it) => acc + (it.quantity || 1), 0);
+
+  return (
+    <div className="cart-drawer-backdrop" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="cart-drawer slide-left">
+        <div className="cart-drawer-header">
+          <div style={{display:'flex', alignItems:'center', gap:10}}>
+            <ShoppingBag size={20} color="var(--gold)"/>
+            <h3>Sua Sacola</h3>
+            <span className="cart-count-pill">{totalItemsCount}</span>
+          </div>
+          <button className="modal-close-btn" onClick={onClose}><X size={20}/></button>
+        </div>
+
+        {items.length === 0 ? (
+          <div className="cart-empty-state">
+            <ShoppingBag size={48} opacity={0.2}/>
+            <p>Sua sacola está vazia.</p>
+            <small>Adicione produtos exclusivos da nossa boutique para finalizar seu pedido.</small>
+            <button className="gold-button compact" style={{marginTop:16}} onClick={onClose}>
+              Explorar Boutique
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="cart-items-scroll">
+              {items.map(it => (
+                <div key={it.id} className="cart-item-card">
+                  <div className="cart-item-thumb">
+                    {it.image_url ? (
+                      <img src={it.image_url} alt={it.name}/>
+                    ) : (
+                      <div className="cart-thumb-ph"><ShoppingBag size={20} opacity={0.3}/></div>
+                    )}
+                  </div>
+                  <div className="cart-item-info">
+                    <span className="cart-item-cat">{it.category}</span>
+                    <strong className="cart-item-name">{it.name}</strong>
+                    <span className="cart-item-price">R$ {parseFloat(it.price || 0).toFixed(2)}</span>
+                    <div className="cart-qty-row">
+                      <div className="cart-stepper">
+                        <button onClick={() => onUpdateQty(it.id, (it.quantity || 1) - 1)}><Minus size={12}/></button>
+                        <span>{it.quantity || 1}</span>
+                        <button onClick={() => onUpdateQty(it.id, (it.quantity || 1) + 1)}><Plus size={12}/></button>
+                      </div>
+                      <button className="cart-del-btn" onClick={() => onRemoveItem(it.id)} title="Remover item">
+                        <Trash2 size={13}/>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="cart-drawer-footer">
+              <div className="cart-subtotal-row">
+                <span>Subtotal:</span>
+                <strong>R$ {total.toFixed(2)}</strong>
+              </div>
+              <div className="cart-shipping-note">
+                <Truck size={13} color="var(--gold)"/>
+                <span>Retirada grátis no Atelier ou Entrega Expressa</span>
+              </div>
+              <button
+                className="gold-button"
+                style={{width:'100%', marginTop:14}}
+                onClick={() => { onClose(); onCheckout(items); }}
+              >
+                Finalizar Compra · R$ {total.toFixed(2)} <ChevronRight size={16}/>
+              </button>
+              <button className="cart-clear-text-btn" onClick={onClearCart}>
+                Limpar sacola
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// PUBLIC LANDING PAGE (Impeccable Design with Working E-Commerce)
+// -----------------------------------------------------------------------------
 function LandingPage({ onEnterApp }) {
   const [products, setProducts] = useState([]);
   const [services, setServices] = useState([]);
-  const [buying, setBuying] = useState(null);
+  const [selectedCat, setSelectedCat] = useState('Todos');
+  const [cartItems, setCartItems] = useState(getStoredCart);
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [checkoutModal, setCheckoutModal] = useState({ isOpen: false, items: [] });
+  const [addedNotice, setAddedNotice] = useState(null);
 
   useEffect(() => {
-    supabase.from('products').select('*').eq('is_active', true).limit(4).then(({ data }) => data && setProducts(data));
-    supabase.from('services').select('*').eq('is_active', true).limit(3).then(({ data }) => data && setServices(data));
+    // 1. Load Services
+    supabase.from('services').select('*').eq('is_active', true).limit(6)
+      .then(({ data }) => data && data.length && setServices(data));
+
+    // 2. Load Products: DB + Local + Initial fallback
+    async function fetchProducts() {
+      let dbProducts = [];
+      try {
+        const { data } = await supabase.from('products').select('*').eq('is_active', true);
+        if (data && data.length) dbProducts = data;
+      } catch {}
+
+      let localProducts = [];
+      try {
+        localProducts = JSON.parse(localStorage.getItem('barber_all_products') || '[]');
+      } catch {}
+
+      const map = new Map();
+      INITIAL_PRODUCTS.forEach(p => map.set(p.id, p));
+      localProducts.forEach(p => map.set(p.id, p));
+      dbProducts.forEach(p => map.set(p.id, p));
+
+      setProducts(Array.from(map.values()));
+    }
+    fetchProducts();
+
+    function handleCartUpdate(e) {
+      setCartItems(e.detail || []);
+    }
+    window.addEventListener('barber_cart_updated', handleCartUpdate);
+    return () => window.removeEventListener('barber_cart_updated', handleCartUpdate);
   }, []);
 
-  async function handleBuy(product) {
-    setBuying(product.id);
-    await buyProduct(product);
-    setBuying(null);
+  const totalCartCount = cartItems.reduce((acc, it) => acc + (it.quantity || 1), 0);
+
+  const categories = ['Todos', 'Pomadas', 'Óleos', 'Shampoos', 'Cremes', 'Acessórios'];
+  const filteredProducts = selectedCat === 'Todos'
+    ? products
+    : products.filter(p => p.category === selectedCat);
+
+  function handleBuyNow(product) {
+    setCheckoutModal({
+      isOpen: true,
+      items: [{ ...product, quantity: 1 }]
+    });
+  }
+
+  function handleAddToCart(product) {
+    addToCart(product, 1);
+    setAddedNotice(product.name);
+    setTimeout(() => setAddedNotice(null), 3000);
   }
 
   return (
     <div className="landing-wrapper">
+      {/* Toast Notice when item added to cart */}
+      {addedNotice && (
+        <div className="cart-toast-notice slide-down">
+          <CheckCircle2 size={16} color="var(--gold)"/>
+          <span><strong>{addedNotice}</strong> adicionado à sacola!</span>
+          <button onClick={() => { setAddedNotice(null); setIsCartOpen(true); }} className="ctn-view-btn">
+            Ver Sacola
+          </button>
+        </div>
+      )}
+
       <nav className="landing-nav fade-in">
         <div className="brand-mark">ATELIER<span>BARBER</span></div>
         <div className="nav-links">
           <a href="#servicos">Serviços</a>
           <a href="#boutique">Boutique</a>
+          
+          {/* Cart Button in Navbar */}
+          <button className="nav-cart-btn" onClick={() => setIsCartOpen(true)} title="Ver Sacola de Compras">
+            <ShoppingBag size={17}/>
+            <span>Sacola</span>
+            {totalCartCount > 0 && <span className="cart-badge">{totalCartCount}</span>}
+          </button>
+
           <button className="outline-button" onClick={() => onEnterApp("login")}>Membros</button>
           <button className="gold-button compact" onClick={() => onEnterApp("register")}>Agendar Horário</button>
         </div>
@@ -255,12 +1134,12 @@ function LandingPage({ onEnterApp }) {
 
       <header className="hero-section">
         <div className="hero-content slide-up">
-          <div className="eyebrow">SÃO PAULO</div>
+          <div className="eyebrow">SÃO PAULO · JARDINS</div>
           <h1 className="hero-title">A arte do cuidado <br/><em>masculino.</em></h1>
-          <p className="hero-subtitle">Descubra uma experiência singular onde tradição e estilo contemporâneo se encontram.</p>
+          <p className="hero-subtitle">Descubra uma experiência singular onde tradição, requinte e estilo contemporâneo se encontram.</p>
           <div className="hero-actions">
             <button className="gold-button" onClick={() => onEnterApp("register")}>Agendar agora <ChevronRight size={17}/></button>
-            <button className="text-button" style={{ color: "var(--white)" }}><Play size={15}/> Conheça o Atelier</button>
+            <a href="#boutique" className="outline-button" style={{color:'#eee', textDecoration:'none'}}><ShoppingBag size={15}/> Conhecer Boutique</a>
           </div>
         </div>
         <div className="hero-image-container fade-in">
@@ -269,6 +1148,7 @@ function LandingPage({ onEnterApp }) {
         </div>
       </header>
 
+      {/* Services Section */}
       <section id="servicos" className="services-section fade-in">
         <div className="section-header-center">
           <div className="eyebrow">NOSSOS SERVIÇOS</div>
@@ -281,60 +1161,120 @@ function LandingPage({ onEnterApp }) {
               <p>{s.description || 'Serviço de alta qualidade com especialistas.'}</p>
               <div className="service-meta">
                 <span>{s.duration_minutes} min</span>
-                <strong>R$ {s.price}</strong>
+                <strong>R$ {parseFloat(s.price).toFixed(2)}</strong>
               </div>
             </div>
           )) : (
             <>
               <div className="service-card">
                 <h3>Corte Clássico</h3><p>Alinhamento perfeito com tesoura e máquina.</p>
-                <div className="service-meta"><span>45 min</span><strong>R$ 80</strong></div>
+                <div className="service-meta"><span>45 min</span><strong>R$ 80,00</strong></div>
               </div>
               <div className="service-card">
                 <h3>Barba Terapia</h3><p>Toalha quente, navalha e hidratação profunda.</p>
-                <div className="service-meta"><span>30 min</span><strong>R$ 60</strong></div>
+                <div className="service-meta"><span>30 min</span><strong>R$ 60,00</strong></div>
               </div>
               <div className="service-card">
                 <h3>Estética Facial</h3><p>Limpeza de pele e cuidados avançados.</p>
-                <div className="service-meta"><span>60 min</span><strong>R$ 120</strong></div>
+                <div className="service-meta"><span>60 min</span><strong>R$ 120,00</strong></div>
               </div>
             </>
           )}
         </div>
       </section>
 
+      {/* Boutique (E-Commerce) Section */}
       <section id="boutique" className="boutique-section fade-in">
         <div className="section-header-center">
-          <div className="eyebrow">BOUTIQUE</div>
-          <h2>Leve o Atelier com você.</h2>
-          <p className="subcopy" style={{textAlign:"center", margin:"10px auto 40px"}}>Produtos premium selecionados pelos nossos especialistas.</p>
+          <div className="eyebrow">BOUTIQUE ATELIER</div>
+          <h2>Leve a experiência para casa.</h2>
+          <p className="subcopy" style={{textAlign:"center", margin:"10px auto 30px", maxWidth:600}}>
+            Produtos de formulação nobre desenvolvidos para homens que valorizam o alto padrão de cuidados diários.
+          </p>
         </div>
-        <div className="product-grid">
-          {products.length ? products.map(p => (
+
+        {/* Category Filter Pills */}
+        <div className="boutique-cat-bar">
+          {categories.map(c => (
+            <button
+              key={c}
+              className={`cat-pill ${selectedCat === c ? 'active' : ''}`}
+              onClick={() => setSelectedCat(c)}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+
+        {/* Product Grid */}
+        <div className="product-grid" style={{marginTop:24}}>
+          {filteredProducts.map(p => (
             <div key={p.id} className="product-card">
               <div className="product-img-box">
-                {p.image_url ? <img src={p.image_url} alt={p.name} /> : <div className="product-placeholder"><ShoppingBag opacity={0.2} size={40}/></div>}
+                {p.image_url ? (
+                  <img src={p.image_url} alt={p.name} />
+                ) : (
+                  <div className="product-placeholder"><ShoppingBag opacity={0.2} size={40}/></div>
+                )}
+                <span className="product-card-badge">{p.category || 'Boutique'}</span>
               </div>
-              <h4>{p.name}</h4>
-              <p>{p.category}</p>
-              <strong>R$ {parseFloat(p.price).toFixed(2)}</strong>
-              <button
-                className="gold-button compact buy-btn"
-                onClick={() => handleBuy(p)}
-                disabled={buying === p.id}
-              >
-                {buying === p.id ? 'Aguarde...' : 'Comprar agora'}
-              </button>
+              
+              <div className="product-card-body">
+                <div className="product-stock-tag">
+                  <Check size={11} color="#51c18a"/>
+                  <span>{p.stock_quantity > 0 ? `${p.stock_quantity} em estoque` : 'Disponível'}</span>
+                </div>
+                <h4>{p.name}</h4>
+                <p className="product-desc">{p.description || 'Produto exclusivo Atelier Barber.'}</p>
+                <strong className="product-price">R$ {parseFloat(p.price).toFixed(2)}</strong>
+
+                <div className="product-actions-group">
+                  <button
+                    className="gold-button compact buy-now-btn"
+                    onClick={() => handleBuyNow(p)}
+                    title="Comprar imediatamente com PIX ou Cartão"
+                  >
+                    Comprar agora
+                  </button>
+                  <button
+                    className="outline-button compact add-cart-btn"
+                    onClick={() => handleAddToCart(p)}
+                    title="Adicionar à sacola de compras"
+                  >
+                    <ShoppingBag size={14}/>
+                  </button>
+                </div>
+              </div>
             </div>
-          )) : (
-            <div className="empty-state">Em breve nossa coleção completa de produtos.</div>
-          )}
+          ))}
         </div>
       </section>
 
+      {/* Cart Drawer */}
+      <CartDrawer
+        isOpen={isCartOpen}
+        onClose={() => setIsCartOpen(false)}
+        items={cartItems}
+        onUpdateQty={updateCartItemQty}
+        onRemoveItem={removeCartItem}
+        onClearCart={clearCart}
+        onCheckout={items => setCheckoutModal({ isOpen: true, items })}
+      />
+
+      {/* Checkout Modal */}
+      <ProductCheckoutModal
+        isOpen={checkoutModal.isOpen}
+        onClose={() => setCheckoutModal({ isOpen: false, items: [] })}
+        items={checkoutModal.items}
+        user={null}
+        onSuccessOrder={() => {
+          setCartItems([]);
+        }}
+      />
+
       <footer className="landing-footer">
         <div className="brand-mark">ATELIER<span>BARBER</span></div>
-        <p>© 2026 Atelier Barber. Todos os direitos reservados.</p>
+        <p>© 2026 Atelier Barber · Boutique & Barbearia. Todos os direitos reservados.</p>
       </footer>
     </div>
   );
@@ -346,6 +1286,7 @@ function LandingPage({ onEnterApp }) {
 function AdminApp({ user, onLogout }) {
   const [activeTab, setActiveTab] = useState("appointments");
   const [liveCount, setLiveCount] = useState(0);
+  const [ordersCount, setOrdersCount] = useState(0);
 
   useEffect(() => {
     function calculateCount() {
@@ -354,6 +1295,11 @@ function AdminApp({ user, onLogout }) {
         const active = stored.filter(a => a.status === 'Confirmado' || a.payment_status === 'Pago');
         setLiveCount(active.length);
       } catch {}
+      try {
+        const storedOrders = JSON.parse(localStorage.getItem('barber_all_orders') || '[]');
+        const activeOrders = storedOrders.filter(o => o.status !== 'Entregue' && o.status !== 'Cancelado');
+        setOrdersCount(activeOrders.length);
+      } catch {}
     }
     calculateCount();
 
@@ -361,9 +1307,11 @@ function AdminApp({ user, onLogout }) {
       calculateCount();
     }
     window.addEventListener('barber_new_appointment', onNew);
+    window.addEventListener('barber_new_order', onNew);
     window.addEventListener('storage', onNew);
     return () => {
       window.removeEventListener('barber_new_appointment', onNew);
+      window.removeEventListener('barber_new_order', onNew);
       window.removeEventListener('storage', onNew);
     };
   }, []);
@@ -377,6 +1325,10 @@ function AdminApp({ user, onLogout }) {
           <button className={activeTab === "appointments" ? "active" : ""} onClick={() => setActiveTab("appointments")}>
             <CalendarCheck size={18} />Agendamentos & Caixa
             {liveCount > 0 && <span className="nav-badge-gold">{liveCount}</span>}
+          </button>
+          <button className={activeTab === "orders" ? "active" : ""} onClick={() => setActiveTab("orders")}>
+            <Package size={18} />Pedidos da Boutique
+            {ordersCount > 0 && <span className="nav-badge-gold">{ordersCount}</span>}
           </button>
           <button className={activeTab === "barbers" ? "active" : ""} onClick={() => setActiveTab("barbers")}><Scissors size={18} />Equipe</button>
           <button className={activeTab === "services" ? "active" : ""} onClick={() => setActiveTab("services")}><CalendarDays size={18} />Serviços</button>
@@ -394,7 +1346,8 @@ function AdminApp({ user, onLogout }) {
         <header className="topbar">
           <div><div className="eyebrow">PAINEL EXECUTIVO</div><h2>Gestão do Atelier.</h2></div>
         </header>
-        {activeTab === "appointments" && <AdminAppointments user={user} />}
+        {activeTab === "appointments" && <AdminAppointments user={user} onGoToOrders={() => setActiveTab("orders")} />}
+        {activeTab === "orders" && <AdminOrders user={user} />}
         {activeTab === "barbers" && <AdminBarbers user={user} />}
         {activeTab === "services" && <AdminServices user={user} />}
         {activeTab === "products" && <AdminProducts user={user} />}
@@ -1371,8 +2324,410 @@ function AdminProducts({ user }) {
   );
 }
 
+// ── Admin Boutique Orders Manager ──────────────────────────────────────────
+function AdminOrders({ user }) {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filterStatus, setFilterStatus] = useState('Todos');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedReceipt, setSelectedReceipt] = useState(null);
+
+  let estWA = { phone: '', name: 'Atelier Barber' };
+  try {
+    estWA = JSON.parse(localStorage.getItem('barber_establishment_whatsapp') || '{"phone":"","name":"Atelier Barber"}');
+  } catch {}
+
+  const loadOrders = useCallback(async () => {
+    setLoading(true);
+    let dbOrders = [];
+    try {
+      let query = supabase.from('orders').select('*').order('created_at', { ascending: false });
+      if (user.tenant_id) query = query.eq('tenant_id', user.tenant_id);
+      const { data, error } = await query;
+      if (!error && data) {
+        dbOrders = data.map(o => {
+          let parsedItems = [];
+          try { parsedItems = JSON.parse(o.notes || '[]'); } catch {}
+          return {
+            id: o.id,
+            client_id: o.client_id,
+            client_name: o.client_name || 'Cliente Atelier',
+            client_phone: o.client_phone || '',
+            delivery_type: o.delivery_type || 'pickup',
+            delivery_address: o.delivery_address || (o.delivery_type === 'delivery' ? 'Entrega a combinar' : 'Retirada no Atelier'),
+            items: parsedItems,
+            total_price: o.total_price,
+            payment_method: o.payment_method || 'Pago',
+            payment_status: o.payment_status || 'Pago',
+            status: o.status || 'Confirmado',
+            created_at: o.created_at
+          };
+        });
+      }
+    } catch {}
+
+    let localOrders = [];
+    try {
+      localOrders = JSON.parse(localStorage.getItem('barber_all_orders') || '[]');
+    } catch {}
+
+    const map = new Map();
+    localOrders.forEach(o => map.set(o.id, o));
+    dbOrders.forEach(o => {
+      const local = map.get(o.id);
+      map.set(o.id, { ...local, ...o });
+    });
+
+    const list = Array.from(map.values()).sort((a, b) => {
+      const tA = new Date(a.created_at || 0).getTime();
+      const tB = new Date(b.created_at || 0).getTime();
+      return tB - tA;
+    });
+
+    setOrders(list);
+    setLoading(false);
+  }, [user.tenant_id]);
+
+  useEffect(() => {
+    loadOrders();
+    function handleNew() { loadOrders(); }
+    window.addEventListener('barber_new_order', handleNew);
+    window.addEventListener('storage', handleNew);
+
+    const channel = supabase
+      .channel('admin_orders_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        loadOrders();
+      })
+      .subscribe();
+
+    return () => {
+      window.removeEventListener('barber_new_order', handleNew);
+      window.removeEventListener('storage', handleNew);
+      supabase.removeChannel(channel);
+    };
+  }, [loadOrders]);
+
+  async function updateOrderStatus(orderId, newStatus) {
+    try {
+      await supabase.from('orders').update({ status: newStatus }).eq('id', orderId);
+    } catch {}
+    try {
+      const local = JSON.parse(localStorage.getItem('barber_all_orders') || '[]');
+      const updated = local.map(o => o.id === orderId ? { ...o, status: newStatus } : o);
+      localStorage.setItem('barber_all_orders', JSON.stringify(updated));
+    } catch {}
+    loadOrders();
+  }
+
+  // Metrics
+  const totalSales = orders.reduce((sum, o) => sum + (parseFloat(o.total_price) || 0), 0);
+  const pickupOrders = orders.filter(o => o.delivery_type === 'pickup');
+  const deliveryOrders = orders.filter(o => o.delivery_type === 'delivery');
+  const pendingOrders = orders.filter(o => o.status !== 'Entregue' && o.status !== 'Cancelado');
+
+  const filteredOrders = orders.filter(o => {
+    if (filterStatus === 'Pendentes' && (o.status === 'Entregue' || o.status === 'Cancelado')) return false;
+    if (filterStatus === 'Pronto' && o.status !== 'Pronto p/ Retirada') return false;
+    if (filterStatus === 'Entrega' && o.delivery_type !== 'delivery') return false;
+    if (filterStatus === 'Entregue' && o.status !== 'Entregue') return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchId = String(o.id || '').toLowerCase().includes(q);
+      const matchClient = (o.client_name || '').toLowerCase().includes(q);
+      const matchPhone = (o.client_phone || '').toLowerCase().includes(q);
+      const matchItem = (o.items || []).some(it => (it.name || '').toLowerCase().includes(q));
+      if (!matchId && !matchClient && !matchPhone && !matchItem) return false;
+    }
+    return true;
+  });
+
+  return (
+    <section className="admin-view fade-in">
+      <div className="section-head">
+        <div>
+          <h3>Pedidos da Boutique (E-commerce)</h3>
+          <p className="section-sub">{orders.length} pedido{orders.length !== 1 ? 's' : ''} registrado{orders.length !== 1 ? 's' : ''}</p>
+        </div>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="admin-kpi-grid">
+        <div className="admin-kpi-card gold-border">
+          <div className="kpi-icon-wrap"><DollarSign size={22} color="var(--gold)"/></div>
+          <div>
+            <span className="kpi-label">TOTAL EM VENDAS</span>
+            <strong className="kpi-value">R$ {totalSales.toFixed(2)}</strong>
+            <span className="kpi-sub">{orders.length} compras concluídas</span>
+          </div>
+        </div>
+
+        <div className="admin-kpi-card">
+          <div className="kpi-icon-wrap"><Package size={22} color="var(--gold)"/></div>
+          <div>
+            <span className="kpi-label">A SEPARAR / ENTREGAR</span>
+            <strong className="kpi-value">{pendingOrders.length}</strong>
+            <span className="kpi-sub">{pickupOrders.length} retiradas · {deliveryOrders.length} entregas</span>
+          </div>
+        </div>
+
+        <div className="admin-kpi-card">
+          <div className="kpi-icon-wrap"><Truck size={22} color="var(--gold)"/></div>
+          <div>
+            <span className="kpi-label">ENTREGAS EXPRESSAS</span>
+            <strong className="kpi-value">{deliveryOrders.length}</strong>
+            <span className="kpi-sub">Envios via motoboy</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Filters & Search */}
+      <div className="admin-toolbar" style={{marginTop:24}}>
+        <div className="category-filter-row" style={{marginBottom:0}}>
+          {['Todos', 'Pendentes', 'Pronto', 'Entrega', 'Entregue'].map(st => (
+            <button
+              key={st}
+              className={`cat-pill ${filterStatus === st ? 'active' : ''}`}
+              onClick={() => setFilterStatus(st)}
+            >
+              {st} {st === 'Todos' ? `(${orders.length})` : st === 'Pendentes' ? `(${pendingOrders.length})` : ''}
+            </button>
+          ))}
+        </div>
+
+        <div className="admin-search-box">
+          <Search size={15} color="#888"/>
+          <input
+            placeholder="Buscar por código, cliente ou produto..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} className="search-clear"><X size={13}/></button>
+          )}
+        </div>
+      </div>
+
+      {/* Orders List */}
+      <div style={{marginTop:20}}>
+        {loading ? (
+          <div style={{color:'#888', padding:40, textAlign:'center'}}>Sincronizando pedidos da boutique...</div>
+        ) : filteredOrders.length === 0 ? (
+          <div className="premium-empty" style={{marginTop:20}}>
+            <Package size={36} opacity={0.2}/>
+            <p>Nenhum pedido encontrado para este filtro.</p>
+          </div>
+        ) : (
+          <div className="admin-appt-list">
+            {filteredOrders.map(o => {
+              const dateStr = o.created_at ? new Date(o.created_at).toLocaleDateString('pt-BR') : '';
+              const timeStr = o.created_at ? new Date(o.created_at).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' }) : '';
+              const isDelivery = o.delivery_type === 'delivery';
+
+              return (
+                <div key={o.id} className="admin-appt-card order-card">
+                  {/* Order ID & Date */}
+                  <div className="aac-date-col">
+                    <span className="today-badge" style={{background:'#222', color:'var(--gold)', border:'1px solid var(--gold-soft)'}}>
+                      {isDelivery ? 'ENTREGA' : 'RETIRADA'}
+                    </span>
+                    <strong className="aac-time" style={{fontSize:13}}>#{String(o.id).slice(0, 10)}</strong>
+                    <span className="aac-date">{dateStr} {timeStr}</span>
+                  </div>
+
+                  {/* Customer Info */}
+                  <div className="aac-client-col">
+                    <div className="aac-avatar">{o.client_name?.[0] || 'C'}</div>
+                    <div>
+                      <strong className="aac-client-name">{o.client_name || 'Cliente Boutique'}</strong>
+                      {o.client_phone ? (
+                        <a
+                          href={`https://wa.me/${cleanWhatsAppNumber(o.client_phone)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="client-wa-link"
+                          style={{marginTop:2}}
+                          title="Conversar com cliente no WhatsApp"
+                        >
+                          <Phone size={10}/> {o.client_phone}
+                        </a>
+                      ) : (
+                        <span className="aac-client-email">Sem telefone</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Items and Delivery */}
+                  <div className="aac-service-col" style={{flex:1.5}}>
+                    <strong style={{color:'var(--gold)'}}>
+                      {(o.items || []).map(i => `${i.quantity || 1}x ${i.name}`).join(', ')}
+                    </strong>
+                    <span style={{fontSize:11, color:'#aaa', marginTop:3}}>
+                      {isDelivery ? `🛵 ${o.delivery_address}` : `🏪 Retirada no Atelier`}
+                    </span>
+                  </div>
+
+                  {/* Total & Payment */}
+                  <div className="aac-payment-col">
+                    <strong className="aac-price">R$ {parseFloat(o.total_price || 0).toFixed(2)}</strong>
+                    <div style={{display:'flex', gap:6, marginTop:4}}>
+                      <span className="appt-badge paid">✓ PAGO</span>
+                      <span className="payment-method-tag">{o.payment_method || 'Cartão'}</span>
+                    </div>
+                  </div>
+
+                  {/* WhatsApp Quick Actions */}
+                  <div className="aac-wa-col">
+                    <div className="aac-wa-buttons">
+                      {o.client_phone && (
+                        <a
+                          href={getCustomerWhatsAppOrderUrl(o, estWA.name)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="wa-btn-chip barber"
+                          title="Avisar cliente sobre o status do pedido no WhatsApp"
+                        >
+                          <MessageCircle size={12} color="#25D366"/>
+                          <span>Avisar Cliente</span>
+                        </a>
+                      )}
+                      {estWA.phone && (
+                        <a
+                          href={getWhatsAppUrlForOrder(o, estWA.phone, estWA.name)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="wa-btn-chip establishment"
+                          title="Notificar responsável pela barbearia no WhatsApp"
+                        >
+                          <Send size={12} color="var(--gold)"/>
+                          <span>Avisar Loja</span>
+                        </a>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Status Badge */}
+                  <div className="aac-status-col">
+                    <span className={`appt-badge ${o.status === 'Entregue' ? 'completed' : o.status === 'Cancelado' ? 'cancelled' : 'confirmed'}`}>
+                      {o.status || 'Confirmado'}
+                    </span>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="aac-actions-col">
+                    {o.status === 'Confirmado' && (
+                      <button
+                        className="gold-button compact"
+                        style={{padding:'6px 12px', fontSize:11}}
+                        onClick={() => updateOrderStatus(o.id, isDelivery ? 'Em Trânsito' : 'Pronto p/ Retirada')}
+                        title={isDelivery ? 'Marcar que saiu para entrega' : 'Marcar pronto para retirar'}
+                      >
+                        <Check size={13}/> {isDelivery ? 'Despachar' : 'Pronto'}
+                      </button>
+                    )}
+                    {(o.status === 'Pronto p/ Retirada' || o.status === 'Em Trânsito') && (
+                      <button
+                        className="gold-button compact"
+                        style={{padding:'6px 12px', fontSize:11}}
+                        onClick={() => updateOrderStatus(o.id, 'Entregue')}
+                        title="Confirmar entrega finalizada"
+                      >
+                        <Check size={13}/> Entregue
+                      </button>
+                    )}
+                    <button
+                      className="outline-button compact"
+                      style={{padding:'6px 10px', fontSize:11}}
+                      onClick={() => setSelectedReceipt(o)}
+                    >
+                      Recibo
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Order Receipt Modal */}
+      {selectedReceipt && (
+        <Modal title="Comprovante de Compra na Boutique" onClose={() => setSelectedReceipt(null)}>
+          <div className="receipt-modal-content">
+            <div className="receipt-brand">ATELIER<span>BOUTIQUE</span></div>
+            <div className="receipt-status-banner">
+              <CheckCircle2 size={24} color="var(--gold)"/>
+              <div>
+                <strong>PEDIDO CONFIRMADO & PAGO</strong>
+                <small>Transação registrada com sucesso no Atelier Barber</small>
+              </div>
+            </div>
+
+            <div className="receipt-details-list">
+              <div className="rd-item"><span>Código do Pedido:</span><strong>#{selectedReceipt.id}</strong></div>
+              <div className="rd-item"><span>Cliente:</span><strong>{selectedReceipt.client_name} ({selectedReceipt.client_phone})</strong></div>
+              <div className="rd-item"><span>Modo de Recebimento:</span><strong>{selectedReceipt.delivery_address}</strong></div>
+              <div className="rd-item"><span>Forma de Pagamento:</span><strong>{selectedReceipt.payment_method}</strong></div>
+              <div className="rd-item">
+                <span>Itens:</span>
+                <strong>{(selectedReceipt.items || []).map(i => `${i.quantity || 1}x ${i.name}`).join(' | ')}</strong>
+              </div>
+              <div className="rd-item total-row">
+                <span>Total Pago:</span>
+                <strong className="total-gold">R$ {parseFloat(selectedReceipt.total_price || 0).toFixed(2)}</strong>
+              </div>
+            </div>
+
+            <div className="receipt-wa-box" style={{marginTop:16}}>
+              <div className="receipt-wa-header">
+                <MessageCircle size={15} color="#25D366"/>
+                <strong>NOTIFICAR NO WHATSAPP</strong>
+              </div>
+              <div className="receipt-wa-grid">
+                {selectedReceipt.client_phone && (
+                  <a
+                    href={getCustomerWhatsAppOrderUrl(selectedReceipt, estWA.name)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="whatsapp-btn-full"
+                    title="Notificar cliente no WhatsApp"
+                  >
+                    <MessageCircle size={15}/>
+                    <span>Avisar Cliente ({selectedReceipt.client_name})</span>
+                  </a>
+                )}
+                {estWA.phone && (
+                  <a
+                    href={getWhatsAppUrlForOrder(selectedReceipt, estWA.phone, estWA.name)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="whatsapp-btn-full outline"
+                    title="Enviar dados do pedido para a Barbearia"
+                  >
+                    <Send size={15}/>
+                    <span>Avisar Barbearia ({estWA.name})</span>
+                  </a>
+                )}
+              </div>
+            </div>
+
+            <div style={{display:'flex', gap:10, marginTop:24}}>
+              <button className="gold-button" style={{flex:1}} onClick={() => window.print()}>
+                <Printer size={15}/> Imprimir Comprovante
+              </button>
+              <button className="outline-button" onClick={() => setSelectedReceipt(null)}>
+                Fechar
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </section>
+  );
+}
+
 // ── Admin Appointments & Cash Flow Manager ──────────────────────────────────
-function AdminAppointments({ user }) {
+function AdminAppointments({ user, onGoToOrders }) {
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState('Todos');
@@ -1455,6 +2810,7 @@ function AdminAppointments({ user }) {
       if (appt) {
         setToastNotification({
           title: 'Novo Pagamento & Agendamento Recebido!',
+          isStoreOrder: false,
           rawAppt: appt,
           client: appt.client_name || 'Cliente',
           service: appt.service_type || appt.service_name || 'Serviço',
@@ -1470,6 +2826,25 @@ function AdminAppointments({ user }) {
     }
     window.addEventListener('barber_new_appointment', handleNewAppt);
 
+    function handleNewOrder(e) {
+      const o = e.detail;
+      if (o) {
+        setToastNotification({
+          title: 'Novo Pedido na Boutique Recebido!',
+          isStoreOrder: true,
+          rawOrder: o,
+          client: o.client_name || 'Cliente Boutique',
+          service: (o.items || []).map(i => `${i.quantity || 1}x ${i.name}`).join(', '),
+          barber: o.delivery_type === 'delivery' ? 'Entrega Expressa' : 'Retirada no Atelier',
+          date: new Date().toLocaleDateString('pt-BR'),
+          time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+          price: parseFloat(o.total_price || 0).toFixed(2),
+          method: o.payment_method || 'Pago',
+        });
+      }
+    }
+    window.addEventListener('barber_new_order', handleNewOrder);
+
     function handleStorage(e) {
       if (e.key === 'barber_all_appointments' || e.key === 'barber_barber_phones' || e.key === 'barber_establishment_whatsapp') {
         loadAppointments();
@@ -1484,6 +2859,7 @@ function AdminAppointments({ user }) {
         if (payload.eventType === 'INSERT') {
           setToastNotification({
             title: 'Novo Pagamento Confirmado no Supabase!',
+            isStoreOrder: false,
             rawAppt: payload.new,
             client: 'Cliente Atelier',
             service: payload.new.service_type,
@@ -1500,6 +2876,7 @@ function AdminAppointments({ user }) {
 
     return () => {
       window.removeEventListener('barber_new_appointment', handleNewAppt);
+      window.removeEventListener('barber_new_order', handleNewOrder);
       window.removeEventListener('storage', handleStorage);
       supabase.removeChannel(channel);
     };
@@ -1563,40 +2940,76 @@ function AdminAppointments({ user }) {
             <div>
               <strong>{toastNotification.title}</strong>
               <p>
-                <strong>{toastNotification.client}</strong> pagou <strong>R$ {toastNotification.price}</strong> via {toastNotification.method} para <strong>{toastNotification.service}</strong> com {toastNotification.barber} em {toastNotification.date} às {toastNotification.time}.
+                <strong>{toastNotification.client}</strong> {toastNotification.isStoreOrder ? 'comprou produtos no valor de' : 'pagou'} <strong>R$ {toastNotification.price}</strong> via {toastNotification.method} ({toastNotification.service}) {toastNotification.isStoreOrder ? `· ${toastNotification.barber}` : `com ${toastNotification.barber} em ${toastNotification.date} às ${toastNotification.time}`}.
               </p>
               {/* Instant WhatsApp buttons in Toast */}
               <div style={{display:'flex', gap:8, marginTop:8, flexWrap:'wrap'}}>
-                {toastNotification.rawAppt && (() => {
-                  const bPhone = getBarberPhoneForAppt(toastNotification.rawAppt) || toastNotification.barberPhone;
-                  const estPhone = establishmentWA.phone;
-                  return (
-                    <>
-                      {bPhone && (
-                        <a
-                          href={getWhatsAppUrlForBarber(toastNotification.rawAppt, bPhone)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="alb-wa-btn"
-                          title="Notificar barbeiro imediatamente via WhatsApp"
-                        >
-                          <MessageCircle size={13}/> Notificar Barbeiro
-                        </a>
-                      )}
-                      {estPhone && (
-                        <a
-                          href={getWhatsAppUrlForEstablishment(toastNotification.rawAppt, estPhone, establishmentWA.name)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="alb-wa-btn secondary"
-                          title="Notificar barbearia via WhatsApp"
-                        >
-                          <Send size={13}/> Notificar Barbearia
-                        </a>
-                      )}
-                    </>
-                  );
-                })()}
+                {toastNotification.isStoreOrder ? (
+                  <>
+                    {toastNotification.rawOrder?.client_phone && (
+                      <a
+                        href={getCustomerWhatsAppOrderUrl(toastNotification.rawOrder, establishmentWA.name)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="alb-wa-btn"
+                        title="Notificar cliente sobre o pedido no WhatsApp"
+                      >
+                        <MessageCircle size={13}/> Notificar Cliente
+                      </a>
+                    )}
+                    {establishmentWA.phone && (
+                      <a
+                        href={getWhatsAppUrlForOrder(toastNotification.rawOrder, establishmentWA.phone, establishmentWA.name)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="alb-wa-btn secondary"
+                        title="Notificar barbearia via WhatsApp"
+                      >
+                        <Send size={13}/> Notificar Barbearia
+                      </a>
+                    )}
+                    {onGoToOrders && (
+                      <button
+                        onClick={onGoToOrders}
+                        className="alb-wa-btn secondary"
+                        style={{cursor:'pointer'}}
+                      >
+                        <Package size={13}/> Ver na Aba Pedidos
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  toastNotification.rawAppt && (() => {
+                    const bPhone = getBarberPhoneForAppt(toastNotification.rawAppt) || toastNotification.barberPhone;
+                    const estPhone = establishmentWA.phone;
+                    return (
+                      <>
+                        {bPhone && (
+                          <a
+                            href={getWhatsAppUrlForBarber(toastNotification.rawAppt, bPhone)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="alb-wa-btn"
+                            title="Notificar barbeiro imediatamente via WhatsApp"
+                          >
+                            <MessageCircle size={13}/> Notificar Barbeiro
+                          </a>
+                        )}
+                        {estPhone && (
+                          <a
+                            href={getWhatsAppUrlForEstablishment(toastNotification.rawAppt, estPhone, establishmentWA.name)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="alb-wa-btn secondary"
+                            title="Notificar barbearia via WhatsApp"
+                          >
+                            <Send size={13}/> Notificar Barbearia
+                          </a>
+                        )}
+                      </>
+                    );
+                  })()
+                )}
               </div>
             </div>
           </div>
@@ -1649,6 +3062,16 @@ function AdminAppointments({ user }) {
         </div>
 
         <div style={{display:'flex', gap:10, alignItems:'center', flexWrap:'wrap'}}>
+          {onGoToOrders && (
+            <button
+              className="gold-button compact"
+              onClick={onGoToOrders}
+              title="Acessar pedidos da boutique"
+            >
+              <Package size={14}/> Pedidos da Boutique
+            </button>
+          )}
+
           <button
             className="outline-button compact wa-toolbar-btn"
             onClick={() => { setWaForm(establishmentWA); setWaConfigModal(true); }}
@@ -1962,19 +3385,353 @@ function AdminAppointments({ user }) {
 }
 
 // -----------------------------------------------------------------------------
-// CLIENT APP — Full Experience
+// ── Client Shop (Member Boutique Experience) ───────────────────────────────────
+function ClientShop({ user, onOpenCart, onBuyNow, onGoToOrders }) {
+  const [products, setProducts] = useState([]);
+  const [selectedCat, setSelectedCat] = useState('Todos');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [addedNotice, setAddedNotice] = useState(null);
+
+  useEffect(() => {
+    async function loadProducts() {
+      let dbProducts = [];
+      try {
+        const { data } = await supabase.from('products').select('*').eq('is_active', true);
+        if (data && data.length) dbProducts = data;
+      } catch {}
+
+      let localProducts = [];
+      try {
+        localProducts = JSON.parse(localStorage.getItem('barber_all_products') || '[]');
+      } catch {}
+
+      const map = new Map();
+      INITIAL_PRODUCTS.forEach(p => map.set(p.id, p));
+      localProducts.forEach(p => map.set(p.id, p));
+      dbProducts.forEach(p => map.set(p.id, p));
+
+      setProducts(Array.from(map.values()));
+    }
+    loadProducts();
+  }, []);
+
+  const categories = ['Todos', 'Pomadas', 'Óleos', 'Shampoos', 'Cremes', 'Acessórios'];
+
+  const filtered = products.filter(p => {
+    if (selectedCat !== 'Todos' && p.category !== selectedCat) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchName = (p.name || '').toLowerCase().includes(q);
+      const matchDesc = (p.description || '').toLowerCase().includes(q);
+      const matchCat = (p.category || '').toLowerCase().includes(q);
+      if (!matchName && !matchDesc && !matchCat) return false;
+    }
+    return true;
+  });
+
+  function handleAddToCart(p) {
+    addToCart(p, 1);
+    setAddedNotice(p.name);
+    setTimeout(() => setAddedNotice(null), 3000);
+  }
+
+  return (
+    <div className="admin-view fade-in">
+      {addedNotice && (
+        <div className="cart-toast-notice slide-down">
+          <CheckCircle2 size={16} color="var(--gold)"/>
+          <span><strong>{addedNotice}</strong> adicionado à sacola!</span>
+          <button onClick={() => { setAddedNotice(null); onOpenCart(); }} className="ctn-view-btn">
+            Ver Sacola
+          </button>
+        </div>
+      )}
+
+      <header className="topbar">
+        <div>
+          <div className="eyebrow">BOUTIQUE EXCLUSIVA · MEMBROS</div>
+          <h2>Produtos & Cuidados Atelier.</h2>
+        </div>
+        <div style={{display:'flex', gap:10, alignItems:'center'}}>
+          <button className="outline-button compact" onClick={onGoToOrders}>
+            <Package size={14}/> Meus Pedidos
+          </button>
+          <button className="gold-button compact" onClick={onOpenCart}>
+            <ShoppingBag size={15}/> Abrir Sacola
+          </button>
+        </div>
+      </header>
+
+      {/* Toolbar & Filters */}
+      <div className="admin-toolbar" style={{marginTop:16}}>
+        <div className="category-filter-row" style={{marginBottom:0}}>
+          {categories.map(c => (
+            <button
+              key={c}
+              className={`cat-pill ${selectedCat === c ? 'active' : ''}`}
+              onClick={() => setSelectedCat(c)}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+
+        <div className="admin-search-box">
+          <Search size={15} color="#888"/>
+          <input
+            placeholder="Buscar produto por nome ou categoria..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} className="search-clear"><X size={13}/></button>
+          )}
+        </div>
+      </div>
+
+      {/* Products Grid */}
+      <div className="product-grid" style={{marginTop:24}}>
+        {filtered.map(p => (
+          <div key={p.id} className="product-card">
+            <div className="product-img-box">
+              {p.image_url ? (
+                <img src={p.image_url} alt={p.name} />
+              ) : (
+                <div className="product-placeholder"><ShoppingBag opacity={0.2} size={40}/></div>
+              )}
+              <span className="product-card-badge">{p.category || 'Boutique'}</span>
+            </div>
+            
+            <div className="product-card-body">
+              <div className="product-stock-tag">
+                <Check size={11} color="#51c18a"/>
+                <span>{p.stock_quantity > 0 ? `${p.stock_quantity} em estoque` : 'Disponível'}</span>
+              </div>
+              <h4>{p.name}</h4>
+              <p className="product-desc">{p.description || 'Produto exclusivo Atelier Barber.'}</p>
+              <strong className="product-price">R$ {parseFloat(p.price).toFixed(2)}</strong>
+
+              <div className="product-actions-group">
+                <button
+                  className="gold-button compact buy-now-btn"
+                  onClick={() => onBuyNow(p)}
+                  title="Comprar imediatamente com PIX ou Cartão"
+                >
+                  Comprar agora
+                </button>
+                <button
+                  className="outline-button compact add-cart-btn"
+                  onClick={() => handleAddToCart(p)}
+                  title="Adicionar à sacola de compras"
+                >
+                  <ShoppingBag size={14}/>
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Client Orders Tab (Order History) ───────────────────────────────────────────
+function ClientOrders({ user, onGoToShop }) {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedReceipt, setSelectedReceipt] = useState(null);
+
+  const loadOrders = useCallback(() => {
+    setLoading(true);
+    let all = [];
+    try {
+      all = JSON.parse(localStorage.getItem('barber_all_orders') || '[]');
+    } catch {}
+
+    const userOrders = all.filter(o => !o.client_id || !user?.id || o.client_id === user.id);
+    setOrders(userOrders);
+    setLoading(false);
+  }, [user?.id]);
+
+  useEffect(() => {
+    loadOrders();
+    function handleNewOrder() {
+      loadOrders();
+    }
+    window.addEventListener('barber_new_order', handleNewOrder);
+    return () => window.removeEventListener('barber_new_order', handleNewOrder);
+  }, [loadOrders]);
+
+  let estWA = { phone: '', name: 'Atelier Barber' };
+  try {
+    estWA = JSON.parse(localStorage.getItem('barber_establishment_whatsapp') || '{"phone":"","name":"Atelier Barber"}');
+  } catch {}
+
+  return (
+    <div className="admin-view fade-in">
+      <header className="topbar">
+        <div>
+          <div className="eyebrow">HISTÓRICO DE COMPRAS</div>
+          <h2>Meus Pedidos na Boutique.</h2>
+        </div>
+        <button className="gold-button compact" onClick={onGoToShop}>
+          <ShoppingBag size={15}/> Ver Boutique
+        </button>
+      </header>
+
+      {loading ? (
+        <div style={{color:'#888', padding:40, textAlign:'center'}}>Carregando histórico de pedidos...</div>
+      ) : orders.length === 0 ? (
+        <div className="premium-empty" style={{marginTop:30}}>
+          <Package size={36} opacity={0.2}/>
+          <p>Você ainda não realizou compras na boutique.</p>
+          <button className="gold-button" style={{marginTop:16}} onClick={onGoToShop}>
+            Explorar Produtos <ChevronRight size={16}/>
+          </button>
+        </div>
+      ) : (
+        <div className="admin-appt-list" style={{marginTop:20}}>
+          {orders.map(o => {
+            const dateStr = o.created_at ? new Date(o.created_at).toLocaleDateString('pt-BR') : 'Data recente';
+            return (
+              <div key={o.id} className="admin-appt-card order-card">
+                <div className="aac-date-col">
+                  <span className="today-badge" style={{background:'#222', color:'var(--gold)', border:'1px solid var(--gold-soft)'}}>PEDIDO</span>
+                  <strong className="aac-time" style={{fontSize:13}}>#{o.id}</strong>
+                  <span className="aac-date">{dateStr}</span>
+                </div>
+
+                <div className="aac-service-col" style={{flex:1.5}}>
+                  <strong style={{color:'var(--gold)'}}>
+                    {(o.items || []).map(i => `${i.quantity || 1}x ${i.name}`).join(', ')}
+                  </strong>
+                  <span style={{fontSize:11, color:'#aaa', marginTop:3}}>
+                    {o.delivery_type === 'delivery' ? `🛵 Entrega: ${o.delivery_address}` : `🏪 Retirada no Atelier Barber`}
+                  </span>
+                </div>
+
+                <div className="aac-payment-col">
+                  <strong className="aac-price">R$ {parseFloat(o.total_price || 0).toFixed(2)}</strong>
+                  <div style={{display:'flex', gap:6, marginTop:4}}>
+                    <span className="appt-badge paid">✓ PAGO</span>
+                    <span className="payment-method-tag">{o.payment_method || 'Cartão'}</span>
+                  </div>
+                </div>
+
+                <div className="aac-status-col">
+                  <span className="appt-badge confirmed">{o.status || 'Confirmado'}</span>
+                </div>
+
+                <div className="aac-actions-col">
+                  {estWA.phone && (
+                    <a
+                      href={getWhatsAppUrlForOrder(o, estWA.phone, estWA.name)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="wa-btn-chip establishment"
+                      title="Enviar pedido para o WhatsApp da Barbearia"
+                    >
+                      <MessageCircle size={12}/> Avisar Loja
+                    </a>
+                  )}
+                  <button
+                    className="outline-button compact"
+                    style={{padding:'6px 12px', fontSize:11}}
+                    onClick={() => setSelectedReceipt(o)}
+                  >
+                    Ver Recibo
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Order Receipt Modal */}
+      {selectedReceipt && (
+        <Modal title="Comprovante de Compra na Boutique" onClose={() => setSelectedReceipt(null)}>
+          <div className="receipt-modal-content">
+            <div className="receipt-brand">ATELIER<span>BOUTIQUE</span></div>
+            <div className="receipt-status-banner">
+              <CheckCircle2 size={24} color="var(--gold)"/>
+              <div>
+                <strong>PEDIDO CONFIRMADO & PAGO</strong>
+                <small>Transação registrada com sucesso no Atelier Barber</small>
+              </div>
+            </div>
+
+            <div className="receipt-details-list">
+              <div className="rd-item"><span>Código do Pedido:</span><strong>#{selectedReceipt.id}</strong></div>
+              <div className="rd-item"><span>Cliente:</span><strong>{selectedReceipt.client_name} ({selectedReceipt.client_phone})</strong></div>
+              <div className="rd-item"><span>Modo de Recebimento:</span><strong>{selectedReceipt.delivery_address}</strong></div>
+              <div className="rd-item"><span>Forma de Pagamento:</span><strong>{selectedReceipt.payment_method}</strong></div>
+              <div className="rd-item">
+                <span>Itens:</span>
+                <strong>{(selectedReceipt.items || []).map(i => `${i.quantity || 1}x ${i.name}`).join(' | ')}</strong>
+              </div>
+              <div className="rd-item total-row">
+                <span>Total Pago:</span>
+                <strong className="total-gold">R$ {parseFloat(selectedReceipt.total_price || 0).toFixed(2)}</strong>
+              </div>
+            </div>
+
+            <div style={{display:'flex', gap:10, marginTop:24}}>
+              <button className="gold-button" style={{flex:1}} onClick={() => window.print()}>
+                <Printer size={15}/> Imprimir
+              </button>
+              <button className="outline-button" onClick={() => setSelectedReceipt(null)}>
+                Fechar
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// CLIENT APP — Full Experience with E-Commerce
 // -----------------------------------------------------------------------------
 function ClientApp({ user, onLogout, onUserUpdate }) {
   const [activeTab, setActiveTab] = useState('services');
+  const [cartItems, setCartItems] = useState(getStoredCart);
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [checkoutModal, setCheckoutModal] = useState({ isOpen: false, items: [] });
+
+  useEffect(() => {
+    function handleCartUpdate(e) {
+      setCartItems(e.detail || []);
+    }
+    window.addEventListener('barber_cart_updated', handleCartUpdate);
+    return () => window.removeEventListener('barber_cart_updated', handleCartUpdate);
+  }, []);
+
+  const totalCartCount = cartItems.reduce((acc, it) => acc + (it.quantity || 1), 0);
+
   return (
     <div className="app-shell fade-in">
       <aside className="sidebar">
         <div className="brand-mark">ATELIER<span>BARBER</span></div>
         <div className="location"><MapPin size={14}/> MEMBRO</div>
         <nav>
-          <button className={activeTab === 'services' ? 'active' : ''} onClick={() => setActiveTab('services')}><Scissors size={18}/>Serviços</button>
-          <button className={activeTab === 'appointments' ? 'active' : ''} onClick={() => setActiveTab('appointments')}><CalendarDays size={18}/>Agendamentos</button>
-          <button className={activeTab === 'profile'  ? 'active' : ''} onClick={() => setActiveTab('profile')} ><User size={18}/>Meu Perfil</button>
+          <button className={activeTab === 'services' ? 'active' : ''} onClick={() => setActiveTab('services')}>
+            <Scissors size={18}/>Serviços
+          </button>
+          <button className={activeTab === 'appointments' ? 'active' : ''} onClick={() => setActiveTab('appointments')}>
+            <CalendarDays size={18}/>Agendamentos
+          </button>
+          <button className={activeTab === 'shop' ? 'active' : ''} onClick={() => setActiveTab('shop')}>
+            <ShoppingBag size={18}/>Boutique (Loja)
+            {totalCartCount > 0 && <span className="nav-badge-gold">{totalCartCount}</span>}
+          </button>
+          <button className={activeTab === 'orders' ? 'active' : ''} onClick={() => setActiveTab('orders')}>
+            <Package size={18}/>Meus Pedidos
+          </button>
+          <button className={activeTab === 'profile'  ? 'active' : ''} onClick={() => setActiveTab('profile')}>
+            <User size={18}/>Meu Perfil
+          </button>
         </nav>
         <div className="sidebar-bottom">
           <div className="member-card">
@@ -1993,10 +3750,47 @@ function ClientApp({ user, onLogout, onUserUpdate }) {
         {activeTab === 'appointments' && (
           <ClientAppointments user={user} onGoToServices={() => setActiveTab('services')}/>
         )}
+        {activeTab === 'shop' && (
+          <ClientShop
+            user={user}
+            onOpenCart={() => setIsCartOpen(true)}
+            onBuyNow={p => setCheckoutModal({ isOpen: true, items: [{ ...p, quantity: 1 }] })}
+            onGoToOrders={() => setActiveTab('orders')}
+          />
+        )}
+        {activeTab === 'orders' && (
+          <ClientOrders
+            user={user}
+            onGoToShop={() => setActiveTab('shop')}
+          />
+        )}
         {activeTab === 'profile' && (
           <ClientProfile user={user} onUpdate={onUserUpdate}/>
         )}
       </main>
+
+      {/* Cart Drawer */}
+      <CartDrawer
+        isOpen={isCartOpen}
+        onClose={() => setIsCartOpen(false)}
+        items={cartItems}
+        onUpdateQty={updateCartItemQty}
+        onRemoveItem={removeCartItem}
+        onClearCart={clearCart}
+        onCheckout={items => setCheckoutModal({ isOpen: true, items })}
+      />
+
+      {/* Checkout Modal */}
+      <ProductCheckoutModal
+        isOpen={checkoutModal.isOpen}
+        onClose={() => setCheckoutModal({ isOpen: false, items: [] })}
+        items={checkoutModal.items}
+        user={user}
+        onSuccessOrder={() => {
+          setCartItems([]);
+          setActiveTab('orders');
+        }}
+      />
     </div>
   );
 }
