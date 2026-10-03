@@ -111,11 +111,11 @@ function LandingPage({ onEnterApp }) {
   return (
     <div className="landing-wrapper">
       <nav className="landing-nav fade-in">
-        <div className="brand-mark" style={{ color: "var(--black)" }}>ATELIER<span>BARBER</span></div>
+        <div className="brand-mark">ATELIER<span>BARBER</span></div>
         <div className="nav-links">
           <a href="#servicos">Serviços</a>
           <a href="#boutique">Boutique</a>
-          <button className="outline-button dark" onClick={() => onEnterApp("login")}>Membros</button>
+          <button className="outline-button" onClick={() => onEnterApp("login")}>Membros</button>
           <button className="gold-button compact" onClick={() => onEnterApp("register")}>Agendar Horário</button>
         </div>
       </nav>
