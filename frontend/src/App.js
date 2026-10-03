@@ -262,41 +262,102 @@ function AdminApp({ user, onLogout }) {
   );
 }
 
-// ── Image Upload Helper ───────────────────────────────────────────────────────
+// ── Image Upload & Compression Helper ─────────────────────────────────────────
+function compressImage(file, maxWidth = 500, maxHeight = 500, quality = 0.85) {
+  return new Promise((resolve) => {
+    if (!file || !file.type.startsWith('image/')) {
+      resolve(null);
+      return;
+    }
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => resolve(event.target.result);
+    };
+    reader.onerror = () => resolve(null);
+  });
+}
+
 async function uploadImage(file, bucket = 'images') {
-  const ext = file.name.split('.').pop();
-  const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-  const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: true });
-  if (error) { console.error(error); return null; }
-  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
-  return data.publicUrl;
+  const compressed = await compressImage(file, 600, 600, 0.85);
+  try {
+    const ext = file.name ? file.name.split('.').pop() : 'jpg';
+    const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: true });
+    if (!error) {
+      const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+      if (data?.publicUrl) return data.publicUrl;
+    }
+  } catch (err) {
+    console.warn('Storage upload error, using local compressed data URL:', err);
+  }
+  // Se o bucket não existir ou der erro no Supabase Storage, usa o base64 comprimido
+  return compressed;
 }
 
 function ImageUploadField({ label, value, onChange }) {
   const [preview, setPreview] = useState(value || null);
   const [uploading, setUploading] = useState(false);
-  const ref = useState(null);
+  const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    setPreview(value || null);
+  }, [value]);
+
   async function handle(e) {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
     const url = await uploadImage(file);
     setUploading(false);
-    if (url) { setPreview(url); onChange(url); }
+    if (url) {
+      setPreview(url);
+      onChange(url);
+    }
   }
+
   return (
     <label className="image-upload-field">
       <span>{label}</span>
-      <div className="image-upload-box" onClick={() => document.getElementById('img-upload-input').click()}>
+      <div className="image-upload-box" onClick={() => fileInputRef.current?.click()}>
         {uploading ? (
-          <span className="upload-hint">Enviando...</span>
+          <span className="upload-hint">Processando foto...</span>
         ) : preview ? (
-          <img src={preview} alt="preview" className="upload-preview"/>
+          <img src={preview} alt="preview" className="upload-preview" />
         ) : (
           <span className="upload-hint"><Camera size={20}/><br/>Clique para anexar foto</span>
         )}
       </div>
-      <input id="img-upload-input" type="file" accept="image/*" style={{display:'none'}} onChange={handle}/>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={handle}
+      />
     </label>
   );
 }
@@ -1489,12 +1550,31 @@ function ClientProfile({ user, onUpdate }) {
     setSaving(false);
   }
 
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
   async function handleAvatarUpload(e) {
     const file = e.target.files?.[0]; if (!file) return;
-    const url = await uploadImage(file);
-    if (url) {
-      await supabase.from('user_profiles').update({ avatar_url: url }).eq('id', user.id);
-      if (onUpdate) onUpdate({ ...user, avatar_url: url });
+    setUploadingAvatar(true);
+    setMsg('');
+    try {
+      const url = await uploadImage(file);
+      if (url) {
+        // 1. Salva nos metadados do auth (persiste na sessão do Supabase)
+        await supabase.auth.updateUser({ data: { avatar_url: url } });
+        // 2. Tenta atualizar na tabela user_profiles (caso a coluna exista)
+        try {
+          await supabase.from('user_profiles').update({ avatar_url: url }).eq('id', user.id);
+        } catch {}
+        // 3. Salva no cache local para carregamento instantâneo
+        localStorage.setItem(`barber_avatar_${user.id}`, url);
+        // 4. Atualiza o estado da aplicação
+        if (onUpdate) onUpdate({ ...user, avatar_url: url });
+        setMsg('Foto atualizada com sucesso!');
+      }
+    } catch (err) {
+      setMsg('Erro ao atualizar foto: ' + err.message);
+    } finally {
+      setUploadingAvatar(false);
     }
   }
 
@@ -1505,12 +1585,14 @@ function ClientProfile({ user, onUpdate }) {
       <div className="profile-edit-layout">
         {/* Avatar */}
         <div className="profile-avatar-block">
-          <label className="avatar-upload-wrap" style={{cursor:'pointer'}}>
+          <label className="avatar-upload-wrap" style={{cursor: uploadingAvatar ? 'wait' : 'pointer'}}>
             {user.avatar_url
               ? <img src={user.avatar_url} alt={user.full_name} className="avatar-large"/>
               : <div className="avatar-large avatar-placeholder">{user.full_name?.[0] || 'U'}</div>}
-            <div className="avatar-overlay"><Camera size={18}/> Alterar foto</div>
-            <input type="file" accept="image/*" style={{display:'none'}} onChange={handleAvatarUpload}/>
+            <div className="avatar-overlay">
+              <Camera size={18}/> {uploadingAvatar ? 'Processando...' : 'Alterar foto'}
+            </div>
+            <input type="file" accept="image/*" style={{display:'none'}} onChange={handleAvatarUpload} disabled={uploadingAvatar}/>
           </label>
           <strong style={{marginTop:14,fontSize:16}}>{user.full_name}</strong>
           <small style={{color:'#666'}}>{user.email}</small>
@@ -1589,12 +1671,13 @@ function AppContent() {
         .from('user_profiles').select('*').eq('id', session.user.id).single();
       if (error) console.warn('Profile fetch error:', error.message);
       const meta = session.user.user_metadata || {};
+      const cachedAvatar = localStorage.getItem(`barber_avatar_${session.user.id}`);
       setUser({
         ...session.user,
         full_name: profile?.full_name || meta.full_name || meta.name || session.user.email,
         role:      profile?.role      || meta.role      || 'client',
         tenant_id: profile?.tenant_id || null,
-        avatar_url: profile?.avatar_url || null,
+        avatar_url: profile?.avatar_url || meta.avatar_url || cachedAvatar || null,
         ...(profile || {}),
       });
     } else {
