@@ -22,6 +22,96 @@ function resolveImage(src, fallback) {
   return src;
 }
 
+// ── Banco de Fotos Curado para Serviços de Barbearia & Estética ───────────────
+const SERVICE_PHOTO_BANK = [
+  {
+    id: 'corte-classico',
+    title: 'Corte Clássico & Tesoura',
+    category: 'Cabelo',
+    url: 'https://images.unsplash.com/photo-1599351431202-1e0f0137899a?auto=format&fit=crop&w=800&q=80',
+  },
+  {
+    id: 'corte-fade',
+    title: 'Fade / Degradê Moderno',
+    category: 'Cabelo',
+    url: 'https://images.unsplash.com/photo-1622286342621-4bd786c2447c?auto=format&fit=crop&w=800&q=80',
+  },
+  {
+    id: 'barba-terapia',
+    title: 'Barboterapia & Toalha Quente',
+    category: 'Barba',
+    url: 'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=800&q=80',
+  },
+  {
+    id: 'barba-navalha',
+    title: 'Alinhamento & Navalha',
+    category: 'Barba',
+    url: 'https://images.unsplash.com/photo-1621605815971-fbc98d665033?auto=format&fit=crop&w=800&q=80',
+  },
+  {
+    id: 'estetica-facial',
+    title: 'Estética Facial & Limpeza',
+    category: 'Estética',
+    url: 'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?auto=format&fit=crop&w=800&q=80',
+  },
+  {
+    id: 'hidratacao-capilar',
+    title: 'Tratamento & Hidratação',
+    category: 'Tratamento',
+    url: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=800&q=80',
+  },
+  {
+    id: 'escova-progressiva',
+    title: 'Escova Progressiva / Alisamento',
+    category: 'Alisamento',
+    url: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=80',
+  },
+  {
+    id: 'coloracao-luzes',
+    title: 'Coloração, Mechas & Luzes',
+    category: 'Coloração',
+    url: 'https://images.unsplash.com/photo-1527799820374-dcf8d9d4a388?auto=format&fit=crop&w=800&q=80',
+  },
+  {
+    id: 'dia-do-noivo',
+    title: 'Experiência VIP / Dia do Noivo',
+    category: 'VIP',
+    url: 'https://images.unsplash.com/photo-1585747860715-2ba37e788b70?auto=format&fit=crop&w=800&q=80',
+  },
+];
+
+function getServiceImage(service) {
+  if (!service) return SERVICE_PHOTO_BANK[0].url;
+  if (service.image_url) return resolveImage(service.image_url, SERVICE_PHOTO_BANK[0].url);
+  if (service.image) return resolveImage(service.image, SERVICE_PHOTO_BANK[0].url);
+
+  const name = (service.name || '').toLowerCase();
+  const cat = (service.category || '').toLowerCase();
+
+  if (name.includes('barba') || cat.includes('barba')) {
+    return name.includes('navalha') ? SERVICE_PHOTO_BANK[3].url : SERVICE_PHOTO_BANK[2].url;
+  }
+  if (name.includes('facial') || name.includes('pele') || cat.includes('estética') || cat.includes('estetica')) {
+    return SERVICE_PHOTO_BANK[4].url;
+  }
+  if (name.includes('hidrata') || name.includes('tratamento') || cat.includes('tratamento')) {
+    return SERVICE_PHOTO_BANK[5].url;
+  }
+  if (name.includes('progressiva') || name.includes('alisamento') || cat.includes('alisamento') || name.includes('escova')) {
+    return SERVICE_PHOTO_BANK[6].url;
+  }
+  if (name.includes('cor') || name.includes('mecha') || name.includes('luzes') || name.includes('platinado') || cat.includes('color')) {
+    return SERVICE_PHOTO_BANK[7].url;
+  }
+  if (name.includes('noivo') || name.includes('vip') || cat.includes('vip')) {
+    return SERVICE_PHOTO_BANK[8].url;
+  }
+  if (name.includes('fade') || name.includes('degradê') || name.includes('degrade')) {
+    return SERVICE_PHOTO_BANK[1].url;
+  }
+  return SERVICE_PHOTO_BANK[0].url;
+}
+
 // ── Auto Capitalize First Letter Helper ────────────────────────────────────────
 function autoCap(str) {
   if (typeof str !== 'string' || !str) return str || '';
@@ -1357,26 +1447,84 @@ function LandingPage({ onEnterApp }) {
         <div className="service-cards">
           {services.length ? services.map(s => (
             <div key={s.id} className="service-card">
-              <h3>{s.name}</h3>
-              <p>{s.description || 'Serviço de alta qualidade com especialistas.'}</p>
-              <div className="service-meta">
-                <span>{s.duration_minutes} min</span>
-                <strong>R$ {parseFloat(s.price).toFixed(2)}</strong>
+              <div className="service-card-img-wrap">
+                <img src={getServiceImage(s)} alt={s.name} className="service-card-img" />
+                <div className="service-card-gradient" />
+                <span className="service-card-cat-badge">{s.category || 'Atelier'}</span>
+                <span className="service-card-duration-badge">⏱️ {formatDuration(s.duration_minutes || 30)}</span>
+              </div>
+              <div className="service-card-content">
+                <h3>{s.name}</h3>
+                <p>{s.description || 'Serviço de alta precisão executado por especialistas.'}</p>
+                <div className="service-meta">
+                  <span className="service-meta-dur">{formatDuration(s.duration_minutes || 30)}</span>
+                  <strong>R$ {parseFloat(s.price).toFixed(2)}</strong>
+                </div>
+                <button className="service-card-book-btn" onClick={() => onEnterApp("register")}>
+                  Agendar Horário <ChevronRight size={14}/>
+                </button>
               </div>
             </div>
           )) : (
             <>
               <div className="service-card">
-                <h3>Corte Clássico</h3><p>Alinhamento perfeito com tesoura e máquina.</p>
-                <div className="service-meta"><span>45 min</span><strong>R$ 80,00</strong></div>
+                <div className="service-card-img-wrap">
+                  <img src={SERVICE_PHOTO_BANK[0].url} alt="Corte Clássico" className="service-card-img" />
+                  <div className="service-card-gradient" />
+                  <span className="service-card-cat-badge">Cabelo</span>
+                  <span className="service-card-duration-badge">⏱️ 45 min</span>
+                </div>
+                <div className="service-card-content">
+                  <h3>Corte Clássico</h3>
+                  <p>Alinhamento perfeito com tesoura e máquina, finalização personalizada.</p>
+                  <div className="service-meta">
+                    <span className="service-meta-dur">45 min</span>
+                    <strong>R$ 80,00</strong>
+                  </div>
+                  <button className="service-card-book-btn" onClick={() => onEnterApp("register")}>
+                    Agendar Horário <ChevronRight size={14}/>
+                  </button>
+                </div>
               </div>
+
               <div className="service-card">
-                <h3>Barba Terapia</h3><p>Toalha quente, navalha e hidratação profunda.</p>
-                <div className="service-meta"><span>30 min</span><strong>R$ 60,00</strong></div>
+                <div className="service-card-img-wrap">
+                  <img src={SERVICE_PHOTO_BANK[2].url} alt="Barba Terapia" className="service-card-img" />
+                  <div className="service-card-gradient" />
+                  <span className="service-card-cat-badge">Barba</span>
+                  <span className="service-card-duration-badge">⏱️ 30 min</span>
+                </div>
+                <div className="service-card-content">
+                  <h3>Barba Terapia</h3>
+                  <p>Toalha quente, navalha e hidratação profunda com óleos essenciais nobres.</p>
+                  <div className="service-meta">
+                    <span className="service-meta-dur">30 min</span>
+                    <strong>R$ 60,00</strong>
+                  </div>
+                  <button className="service-card-book-btn" onClick={() => onEnterApp("register")}>
+                    Agendar Horário <ChevronRight size={14}/>
+                  </button>
+                </div>
               </div>
+
               <div className="service-card">
-                <h3>Estética Facial</h3><p>Limpeza de pele e cuidados avançados.</p>
-                <div className="service-meta"><span>60 min</span><strong>R$ 120,00</strong></div>
+                <div className="service-card-img-wrap">
+                  <img src={SERVICE_PHOTO_BANK[4].url} alt="Estética Facial" className="service-card-img" />
+                  <div className="service-card-gradient" />
+                  <span className="service-card-cat-badge">Estética</span>
+                  <span className="service-card-duration-badge">⏱️ 1h</span>
+                </div>
+                <div className="service-card-content">
+                  <h3>Estética Facial</h3>
+                  <p>Limpeza de pele profunda, esfoliação suave e cuidados faciais de alta performance.</p>
+                  <div className="service-meta">
+                    <span className="service-meta-dur">1h</span>
+                    <strong>R$ 120,00</strong>
+                  </div>
+                  <button className="service-card-book-btn" onClick={() => onEnterApp("register")}>
+                    Agendar Horário <ChevronRight size={14}/>
+                  </button>
+                </div>
               </div>
             </>
           )}
@@ -1948,7 +2096,7 @@ function AdminServices({ user }) {
     } catch { return []; }
   });
   const [modal, setModal] = useState(false);
-  const [form, setForm] = useState({ id: null, name: '', description: '', price: '', duration_minutes: '45', category: 'Barbearia' });
+  const [form, setForm] = useState({ id: null, name: '', description: '', price: '', duration_minutes: '45', category: 'Barbearia', image_url: '' });
   const [showNewCatInput, setShowNewCatInput] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [catModal, setCatModal] = useState(false);
@@ -1973,9 +2121,25 @@ function AdminServices({ user }) {
 
   function openModal(s = null) {
     if (s) {
-      setForm({ id: s.id, name: s.name, description: s.description || '', price: s.price, duration_minutes: s.duration_minutes, category: s.category || allCategories[0] });
+      setForm({
+        id: s.id,
+        name: s.name,
+        description: s.description || '',
+        price: s.price,
+        duration_minutes: String(s.duration_minutes || 45),
+        category: s.category || allCategories[0],
+        image_url: s.image_url || '',
+      });
     } else {
-      setForm({ id: null, name: '', description: '', price: '', duration_minutes: '45', category: allCategories[0] || 'Barbearia' });
+      setForm({
+        id: null,
+        name: '',
+        description: '',
+        price: '',
+        duration_minutes: '45',
+        category: allCategories[0] || 'Barbearia',
+        image_url: '',
+      });
     }
     setShowNewCatInput(false);
     setNewCatName('');
@@ -2021,15 +2185,32 @@ function AdminServices({ user }) {
       name: autoCap(form.name),
       description: autoCap(form.description),
       price: parseFloat(form.price),
-      duration_minutes: parseInt(form.duration_minutes),
+      duration_minutes: parseInt(form.duration_minutes, 10) || 30,
       category: autoCap(form.category),
+      image_url: form.image_url || null,
     };
-    if (form.id) {
-      await supabase.from('services').update(payload).eq('id', form.id);
-    } else {
-      await supabase.from('services').insert(payload);
+    try {
+      let err = null;
+      if (form.id) {
+        const res = await supabase.from('services').update(payload).eq('id', form.id);
+        err = res.error;
+      } else {
+        const res = await supabase.from('services').insert(payload);
+        err = res.error;
+      }
+      if (err && err.message?.includes('image_url')) {
+        const { image_url, ...cleanPayload } = payload;
+        if (form.id) {
+          await supabase.from('services').update(cleanPayload).eq('id', form.id);
+        } else {
+          await supabase.from('services').insert(cleanPayload);
+        }
+      }
+    } catch (e) {
+      console.warn('Notice saving service:', e);
     }
-    setSaving(false); setModal(false);
+    setSaving(false);
+    setModal(false);
     load();
   }
 
@@ -2092,12 +2273,14 @@ function AdminServices({ user }) {
         <div className="service-table">
           {displayedServices.map(s => (
             <div key={s.id} className="service-row">
-              <div className="service-icon-box"><Scissors size={16}/></div>
+              <div className="service-icon-box" style={{overflow:'hidden', padding:0, borderRadius:4, width:42, height:42}}>
+                <img src={getServiceImage(s)} alt={s.name} style={{width:'100%', height:'100%', objectFit:'cover'}} />
+              </div>
               <div className="service-info"><strong>{s.name}</strong><span>{s.category} · {formatDuration(s.duration_minutes || 30)}</span></div>
               <div className="service-price">R$ {parseFloat(s.price).toFixed(2)}</div>
               <div style={{display:'flex', gap:6}}>
-                <button className="icon-button" onClick={() => openModal(s)}><Edit2 size={14}/></button>
-                <button className="icon-button danger" onClick={() => remove(s.id)}><Trash2 size={14}/></button>
+                <button className="icon-button" onClick={() => openModal(s)} title="Editar dados do serviço"><Edit2 size={14}/></button>
+                <button className="icon-button danger" onClick={() => remove(s.id)} title="Excluir serviço"><Trash2 size={14}/></button>
               </div>
             </div>
           ))}
@@ -2189,6 +2372,75 @@ function AdminServices({ user }) {
                 </button>
               </div>
             )}
+
+            {/* Foto do Serviço: Banco de Fotos & Upload */}
+            <div className="service-photo-selector">
+              <div className="sps-header">
+                <Camera size={13} color="var(--gold)"/>
+                <span>Foto do Serviço (Galeria & Agendamento):</span>
+              </div>
+
+              {/* Preview Atual */}
+              <div className="sps-current-box">
+                <div className="sps-img-frame">
+                  <img src={form.image_url ? resolveImage(form.image_url, getServiceImage(form)) : getServiceImage(form)} alt="Preview do serviço" />
+                </div>
+                <div className="sps-current-info">
+                  {form.image_url ? (
+                    <>
+                      <span className="sps-tag custom"><Check size={11} color="var(--gold)"/> Foto personalizada ativa</span>
+                      <button
+                        type="button"
+                        className="text-button"
+                        style={{color:'#d98080', fontSize:11, marginTop:4, textAlign:'left'}}
+                        onClick={() => setForm({...form, image_url: ''})}
+                      >
+                        <Trash2 size={11}/> Usar foto padrão do banco
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="sps-tag default">Foto padrão inteligente ativa</span>
+                      <span style={{color:'#777', fontSize:11}}>Selecione uma foto do catálogo abaixo ou envie um arquivo próprio.</span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Galeria / Banco de Fotos */}
+              <div className="sps-subhead">
+                <span>Catálogo de fotos profissionais disponíveis:</span>
+              </div>
+              <div className="sps-bank-grid">
+                {SERVICE_PHOTO_BANK.map(item => {
+                  const isSelected = form.image_url === item.url;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={`sps-bank-item ${isSelected ? 'selected' : ''}`}
+                      onClick={() => setForm({...form, image_url: item.url})}
+                      title={`Usar: ${item.title}`}
+                    >
+                      <img src={item.url} alt={item.title} />
+                      <span className="sps-item-name">{item.title}</span>
+                      {isSelected && (
+                        <div className="sps-check-badge"><Check size={12} color="#000"/></div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Upload de nova imagem */}
+              <div style={{marginTop:12}}>
+                <ImageUploadField
+                  label="Ou envie uma foto personalizada do seu salão"
+                  value={form.image_url && !SERVICE_PHOTO_BANK.some(b => b.url === form.image_url) ? form.image_url : ''}
+                  onChange={url => setForm({...form, image_url: url})}
+                />
+              </div>
+            </div>
 
             <button className="gold-button" style={{marginTop:24}} onClick={save} disabled={saving}>{saving ? 'Salvando...' : (form.id ? 'Salvar alterações' : 'Criar serviço')}<ChevronRight size={16}/></button>
           </div>
@@ -5038,7 +5290,9 @@ function ClientServices({ user, onGoToAppointments }) {
               className={`client-service-card ${selected?.id === s.id ? 'selected' : ''}`}
               onClick={() => { setSelected(selected?.id === s.id ? null : s); setPayMode(null); }}
             >
-              <div className="csvc-icon"><Scissors size={20}/></div>
+              <div className="csvc-icon" style={{overflow:'hidden', padding:0, borderRadius:4, width:46, height:46}}>
+                <img src={getServiceImage(s)} alt={s.name} style={{width:'100%', height:'100%', objectFit:'cover'}} />
+              </div>
               <div className="csvc-body">
                 <strong>{s.name}</strong>
                 <span>{formatDuration(s.duration_minutes || 30)} · {s.category}</span>
