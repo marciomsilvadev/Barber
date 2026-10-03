@@ -71,11 +71,6 @@ function Login({ onLogin, callbackError = "", initialMode = "login" }) {
           <h1>{mode === "login" ? "Bem-vindo de volta." : "Sua jornada começa aqui."}</h1>
           <p className="subcopy">Acesso exclusivo para membros do Atelier.</p>
           
-          <button className="google-button" onClick={google}>
-            <span className="google-g">G</span>Continuar com Google
-          </button>
-          <div className="divider"><span>ou com e-mail</span></div>
-          
           <form onSubmit={submit}>
             {mode === "register" && (
               <input placeholder="Seu nome" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
