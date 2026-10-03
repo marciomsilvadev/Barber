@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import "@/App.css";
 import {
-  CalendarDays, Camera, ChevronRight, Clock3, LogOut, MapPin, Scissors,
-  ShieldCheck, Star, Trash2, X, ShoppingBag, Plus, Edit2, Play
+  CalendarDays, Camera, ChevronRight, Clock3, CreditCard, Edit2, LogOut, MapPin,
+  QrCode, Scissors, ShieldCheck, Star, Trash2, User, X, ShoppingBag, Plus, Play, Check
 } from "lucide-react";
 import { BrowserRouter } from "react-router-dom";
 import { supabase } from "./lib/supabase";
@@ -565,10 +565,323 @@ function AdminProducts({ user }) {
 }
 
 // -----------------------------------------------------------------------------
+// CLIENT APP — Full Experience
+// -----------------------------------------------------------------------------
+function ClientApp({ user, onLogout, onUserUpdate }) {
+  const [activeTab, setActiveTab] = useState('services');
+  return (
+    <div className="app-shell fade-in">
+      <aside className="sidebar">
+        <div className="brand-mark">ATELIER<span>BARBER</span></div>
+        <div className="location"><MapPin size={14}/> MEMBRO</div>
+        <nav>
+          <button className={activeTab === 'services' ? 'active' : ''} onClick={() => setActiveTab('services')}><Scissors size={18}/>Serviços</button>
+          <button className={activeTab === 'profile'  ? 'active' : ''} onClick={() => setActiveTab('profile')} ><User size={18}/>Meu Perfil</button>
+        </nav>
+        <div className="sidebar-bottom">
+          <div className="member-card">
+            {user.avatar_url
+              ? <img src={user.avatar_url} alt={user.full_name} className="avatar avatar-img"/>
+              : <div className="avatar">{user.full_name?.[0] || 'U'}</div>}
+            <div><strong>{user.full_name}</strong><small>MEMBRO</small></div>
+          </div>
+          <button className="logout" onClick={onLogout}><LogOut size={16}/>Sair</button>
+        </div>
+      </aside>
+      <main className="main-content">
+        {activeTab === 'services' && <ClientServices user={user}/>}
+        {activeTab === 'profile'  && <ClientProfile  user={user} onUpdate={onUserUpdate}/>}
+      </main>
+    </div>
+  );
+}
+
+// ── Client Services (Service selection + Payment) ─────────────────────────────
+function ClientServices({ user }) {
+  const [services, setServices] = useState([]);
+  const [barbers,  setBarbers]  = useState([]);
+  const [selected, setSelected] = useState(null);   // selected service
+  const [barber,   setBarber]   = useState(null);    // selected barber
+  const [payMode,  setPayMode]  = useState(null);    // 'card' | 'pix'
+  const [parcelas, setParcelas] = useState(1);
+  const [buying,   setBuying]   = useState(false);
+
+  useEffect(() => {
+    // Load services and barbers for this tenant (or all if no tenant)
+    supabase.from('services').select('*').eq('is_active', true)
+      .then(({ data }) => data && setServices(data));
+    supabase.from('barbers').select('*')
+      .then(({ data }) => data && setBarbers(data));
+  }, []);
+
+  const total = selected ? parseFloat(selected.price) : 0;
+  const parcelValue = total / parcelas;
+
+  async function pay() {
+    if (!selected) return;
+    setBuying(true);
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/create-checkout-session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          product: {
+            name: selected.name,
+            description: barber ? `com ${barber.name}` : selected.description || '',
+            price: selected.price,
+            image_url: barber?.image || null,
+          },
+          payMode,
+          installments: payMode === 'card' ? parcelas : 1,
+        }),
+      });
+      const { url, error } = await res.json();
+      if (error) { alert('Erro ao iniciar pagamento: ' + error); return; }
+      if (url) window.location.href = url;
+    } catch {
+      alert('Erro de conexão. Tente novamente.');
+    } finally {
+      setBuying(false);
+    }
+  }
+
+  return (
+    <div className="client-layout">
+      {/* Left column — service selection */}
+      <div className="client-main">
+        <header className="topbar">
+          <div>
+            <div className="eyebrow">BEM-VINDO</div>
+            <h2>Olá, {user.full_name?.split(' ')[0]}.</h2>
+          </div>
+        </header>
+
+        <div className="eyebrow" style={{marginBottom:16}}>NOSSOS SERVIÇOS</div>
+        <div className="client-service-grid">
+          {services.length === 0 && (
+            <div className="premium-empty" style={{gridColumn:'1/-1'}}>
+              <Scissors size={28} opacity={0.2}/>
+              <p>Nenhum serviço disponível no momento.</p>
+            </div>
+          )}
+          {services.map(s => (
+            <button
+              key={s.id}
+              className={`client-service-card ${selected?.id === s.id ? 'selected' : ''}`}
+              onClick={() => { setSelected(selected?.id === s.id ? null : s); setPayMode(null); }}
+            >
+              <div className="csvc-icon"><Scissors size={20}/></div>
+              <div className="csvc-body">
+                <strong>{s.name}</strong>
+                <span>{s.duration_minutes} min · {s.category}</span>
+              </div>
+              <div className="csvc-price">
+                <strong>R$ {parseFloat(s.price).toFixed(2)}</strong>
+                {selected?.id === s.id && <Check size={14} color="var(--gold)"/>}
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {selected && barbers.length > 0 && (
+          <>
+            <div className="eyebrow" style={{margin:'32px 0 14px'}}>ESCOLHA O PROFISSIONAL <span style={{color:'#555',letterSpacing:0}}>(opcional)</span></div>
+            <div className="barber-pick-row">
+              <button
+                className={`barber-pick-card ${barber === null ? 'selected' : ''}`}
+                onClick={() => setBarber(null)}
+              >
+                <div className="bpc-avatar">?</div>
+                <span>Qualquer</span>
+              </button>
+              {barbers.map(b => (
+                <button
+                  key={b.id}
+                  className={`barber-pick-card ${barber?.id === b.id ? 'selected' : ''}`}
+                  onClick={() => setBarber(barber?.id === b.id ? null : b)}
+                >
+                  <div className="bpc-avatar">
+                    {b.image ? <img src={b.image} alt={b.name}/> : b.name[0]}
+                  </div>
+                  <span>{b.name.split(' ')[0]}</span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Right column — order summary + payment */}
+      <div className={`client-order-panel ${selected ? 'visible' : ''}`}>
+        <div className="eyebrow" style={{marginBottom:20}}>RESUMO DO PEDIDO</div>
+
+        {!selected ? (
+          <div className="order-empty"><Scissors size={28} opacity={0.12}/><p>Selecione um serviço ao lado</p></div>
+        ) : (
+          <>
+            <div className="order-service-item">
+              <div className="osi-icon"><Scissors size={16}/></div>
+              <div className="osi-body">
+                <strong>{selected.name}</strong>
+                <span>{selected.duration_minutes} min</span>
+              </div>
+              <strong className="osi-price">R$ {parseFloat(selected.price).toFixed(2)}</strong>
+            </div>
+
+            {barber && (
+              <div className="order-service-item" style={{marginTop:8}}>
+                <div className="osi-icon">
+                  {barber.image ? <img src={barber.image} alt={barber.name} style={{width:24,height:24,objectFit:'cover',borderRadius:'50%'}}/> : <User size={16}/>}
+                </div>
+                <div className="osi-body"><strong>{barber.name}</strong><span>Profissional</span></div>
+              </div>
+            )}
+
+            <div className="order-total">
+              <span>Total</span>
+              <strong>R$ {total.toFixed(2)}</strong>
+            </div>
+
+            <div className="eyebrow" style={{margin:'24px 0 12px'}}>FORMA DE PAGAMENTO</div>
+            <div className="pay-methods">
+              <button
+                className={`pay-method-btn ${payMode === 'pix' ? 'active' : ''}`}
+                onClick={() => setPayMode('pix')}
+              >
+                <QrCode size={20}/> PIX
+                <small>À vista · aprovação imediata</small>
+              </button>
+              <button
+                className={`pay-method-btn ${payMode === 'card' ? 'active' : ''}`}
+                onClick={() => setPayMode('card')}
+              >
+                <CreditCard size={20}/> Cartão
+                <small>Crédito ou débito</small>
+              </button>
+            </div>
+
+            {payMode === 'card' && (
+              <div style={{marginTop:14}}>
+                <div className="eyebrow" style={{marginBottom:10}}>PARCELAMENTO</div>
+                <div className="parcelas-grid">
+                  {[1,2,3,4,6,12].map(n => (
+                    <button
+                      key={n}
+                      className={`parcela-btn ${parcelas === n ? 'active' : ''}`}
+                      onClick={() => setParcelas(n)}
+                    >
+                      <strong>{n}x</strong>
+                      <span>R$ {(total/n).toFixed(2)}</span>
+                    </button>
+                  ))}
+                </div>
+                {parcelas > 1 && <p className="parcela-note">Sem juros até 3x · sujeito a aprovação a partir de 4x</p>}
+              </div>
+            )}
+
+            {payMode && (
+              <button
+                className="gold-button"
+                style={{marginTop:28,width:'100%'}}
+                onClick={pay}
+                disabled={buying}
+              >
+                {buying ? 'Aguarde...' : `Pagar ${payMode === 'pix' ? 'via PIX' : `${parcelas}x de R$ ${parcelValue.toFixed(2)}`}`}
+                <ChevronRight size={16}/>
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Client Profile ─────────────────────────────────────────────────────────────
+function ClientProfile({ user, onUpdate }) {
+  const [form, setForm]     = useState({ full_name: user.full_name || '', email: user.email || '', password: '' });
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg]       = useState('');
+
+  async function save() {
+    setSaving(true); setMsg('');
+    // Update profile table
+    const { error: pe } = await supabase.from('user_profiles').update({ full_name: form.full_name }).eq('id', user.id);
+    // Update email if changed
+    if (form.email !== user.email) {
+      const { error: ee } = await supabase.auth.updateUser({ email: form.email });
+      if (ee) { setMsg('Erro ao atualizar email: ' + ee.message); setSaving(false); return; }
+    }
+    // Update password if filled
+    if (form.password.length >= 6) {
+      const { error: we } = await supabase.auth.updateUser({ password: form.password });
+      if (we) { setMsg('Erro ao atualizar senha: ' + we.message); setSaving(false); return; }
+    }
+    if (pe) { setMsg('Erro: ' + pe.message); } else {
+      setMsg('Perfil atualizado com sucesso!');
+      if (onUpdate) onUpdate({ ...user, full_name: form.full_name });
+    }
+    setSaving(false);
+  }
+
+  async function handleAvatarUpload(e) {
+    const file = e.target.files?.[0]; if (!file) return;
+    const url = await uploadImage(file);
+    if (url) {
+      await supabase.from('user_profiles').update({ avatar_url: url }).eq('id', user.id);
+      if (onUpdate) onUpdate({ ...user, avatar_url: url });
+    }
+  }
+
+  return (
+    <div className="admin-view fade-in">
+      <header className="topbar"><div><div className="eyebrow">CONTA</div><h2>Meu Perfil.</h2></div></header>
+
+      <div className="profile-edit-layout">
+        {/* Avatar */}
+        <div className="profile-avatar-block">
+          <label className="avatar-upload-wrap" style={{cursor:'pointer'}}>
+            {user.avatar_url
+              ? <img src={user.avatar_url} alt={user.full_name} className="avatar-large"/>
+              : <div className="avatar-large avatar-placeholder">{user.full_name?.[0] || 'U'}</div>}
+            <div className="avatar-overlay"><Camera size={18}/> Alterar foto</div>
+            <input type="file" accept="image/*" style={{display:'none'}} onChange={handleAvatarUpload}/>
+          </label>
+          <strong style={{marginTop:14,fontSize:16}}>{user.full_name}</strong>
+          <small style={{color:'#666'}}>{user.email}</small>
+        </div>
+
+        {/* Form */}
+        <div className="profile-form">
+          <div className="modal-form" style={{marginTop:0}}>
+            <label>Nome completo
+              <input value={form.full_name} onChange={e => setForm({...form, full_name: e.target.value})}/>
+            </label>
+            <label>E-mail
+              <input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})}/>
+            </label>
+            <label>Nova senha <span className="label-hint">(deixe em branco para manter a atual)</span>
+              <input type="password" placeholder="Mínimo 6 caracteres" value={form.password} onChange={e => setForm({...form, password: e.target.value})}/>
+            </label>
+            {msg && <p style={{color: msg.includes('Erro') ? '#d98080' : '#51c18a', fontSize:12, marginTop:12}}>{msg}</p>}
+            <button className="gold-button" style={{marginTop:24}} onClick={save} disabled={saving}>
+              {saving ? 'Salvando...' : 'Salvar alterações'}<ChevronRight size={16}/>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
 // APP CONTENT / ROUTER
 // -----------------------------------------------------------------------------
 function AppContent() {
-  const [user, setUser] = useState(null);
+  const [user, setUser]       = useState(null);
   const [loading, setLoading] = useState(true);
   const [showAuth, setShowAuth] = useState(null);
 
@@ -581,18 +894,15 @@ function AppContent() {
   async function handleSession(session) {
     if (session) {
       const { data: profile, error } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single();
+        .from('user_profiles').select('*').eq('id', session.user.id).single();
       if (error) console.warn('Profile fetch error:', error.message);
-      // Merge: profile overrides session.user, but fallback to auth metadata
       const meta = session.user.user_metadata || {};
       setUser({
         ...session.user,
         full_name: profile?.full_name || meta.full_name || meta.name || session.user.email,
-        role: profile?.role || meta.role || 'client',
+        role:      profile?.role      || meta.role      || 'client',
         tenant_id: profile?.tenant_id || null,
+        avatar_url: profile?.avatar_url || null,
         ...(profile || {}),
       });
     } else {
@@ -603,41 +913,19 @@ function AppContent() {
 
   async function handleLogout() {
     await supabase.auth.signOut();
-    setUser(null);
-    setShowAuth(null);
+    setUser(null); setShowAuth(null);
   }
 
   if (loading) return <div className="loading-screen">ATELIER<span>BARBER</span></div>;
-  
+
   if (!user) {
-    if (showAuth) return <Login onLogin={setUser} initialMode={showAuth} />;
-    return <LandingPage onEnterApp={setShowAuth} />;
+    if (showAuth) return <Login onLogin={setUser} initialMode={showAuth}/>;
+    return <LandingPage onEnterApp={setShowAuth}/>;
   }
 
-  if (user.role === "admin") return <AdminApp user={user} onLogout={handleLogout} />;
-  
-  return (
-    <div className="app-shell fade-in">
-      <aside className="sidebar">
-        <div className="brand-mark">ATELIER<span>BARBER</span></div>
-        <div className="location"><MapPin size={14} /> Cliente</div>
-        <nav><button className="active"><CalendarDays size={18} />Minha agenda</button></nav>
-        <div className="sidebar-bottom">
-          <div className="member-card">
-            <div className="avatar">{user.full_name?.[0] || 'U'}</div>
-            <div><strong>{user.full_name}</strong><small>MEMBRO</small></div>
-          </div>
-          <button className="logout" onClick={handleLogout}><LogOut size={16} />Sair</button>
-        </div>
-      </aside>
-      <main className="main-content">
-        <header className="topbar">
-          <div><div className="eyebrow">VISÃO GERAL</div><h2>Olá, {user.full_name?.split(' ')[0]}.</h2></div>
-        </header>
-        <div className="empty-state">Área do cliente. O agendamento está em manutenção para integração com os novos Serviços Dinâmicos.</div>
-      </main>
-    </div>
-  );
+  if (user.role === 'admin') return <AdminApp user={user} onLogout={handleLogout}/>;
+
+  return <ClientApp user={user} onLogout={handleLogout} onUserUpdate={u => setUser(u)}/>;
 }
 
-export default function App() { return <BrowserRouter><AppContent /></BrowserRouter>; }
+export default function App() { return <BrowserRouter><AppContent/></BrowserRouter>; }
