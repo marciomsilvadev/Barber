@@ -237,7 +237,45 @@ function AdminApp({ user, onLogout }) {
   );
 }
 
-// ── Shared Modal ───────────────────────────────────────────────────────────────
+// ── Image Upload Helper ───────────────────────────────────────────────────────
+async function uploadImage(file, bucket = 'images') {
+  const ext = file.name.split('.').pop();
+  const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+  const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: true });
+  if (error) { console.error(error); return null; }
+  const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+  return data.publicUrl;
+}
+
+function ImageUploadField({ label, value, onChange }) {
+  const [preview, setPreview] = useState(value || null);
+  const [uploading, setUploading] = useState(false);
+  const ref = useState(null);
+  async function handle(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const url = await uploadImage(file);
+    setUploading(false);
+    if (url) { setPreview(url); onChange(url); }
+  }
+  return (
+    <label className="image-upload-field">
+      <span>{label}</span>
+      <div className="image-upload-box" onClick={() => document.getElementById('img-upload-input').click()}>
+        {uploading ? (
+          <span className="upload-hint">Enviando...</span>
+        ) : preview ? (
+          <img src={preview} alt="preview" className="upload-preview"/>
+        ) : (
+          <span className="upload-hint"><Camera size={20}/><br/>Clique para anexar foto</span>
+        )}
+      </div>
+      <input id="img-upload-input" type="file" accept="image/*" style={{display:'none'}} onChange={handle}/>
+    </label>
+  );
+}
+
 function Modal({ title, onClose, children }) {
   return (
     <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -322,10 +360,8 @@ function AdminBarbers({ user }) {
           <div className="modal-form">
             <label>Nome completo<input placeholder="Ex: Rafael Moura" value={form.name} onChange={e => setForm({...form, name: e.target.value})}/></label>
             <label>Especialidades <span className="label-hint">(separe por vírgula)</span><input placeholder="Corte, Barba, Coloração" value={form.specialties} onChange={e => setForm({...form, specialties: e.target.value})}/></label>
-            <div className="form-row">
-              <label>Valor base (R$)<input type="number" placeholder="80" value={form.price} onChange={e => setForm({...form, price: e.target.value})}/></label>
-              <label>URL da foto <span className="label-hint">(opcional)</span><input placeholder="https://..." value={form.image} onChange={e => setForm({...form, image: e.target.value})}/></label>
-            </div>
+            <label>Valor base (R$)<input type="number" placeholder="80" value={form.price} onChange={e => setForm({...form, price: e.target.value})}/></label>
+            <ImageUploadField label="Foto do profissional" value={form.image} onChange={url => setForm({...form, image: url})}/>
             <button className="gold-button" style={{marginTop:24}} onClick={save} disabled={saving}>{saving ? 'Salvando...' : 'Cadastrar profissional'}<ChevronRight size={16}/></button>
           </div>
         </Modal>
@@ -480,14 +516,12 @@ function AdminProducts({ user }) {
               <label>Preço (R$)<input type="number" placeholder="89.90" value={form.price} onChange={e => setForm({...form, price: e.target.value})}/></label>
               <label>Estoque<input type="number" placeholder="0" value={form.stock_quantity} onChange={e => setForm({...form, stock_quantity: e.target.value})}/></label>
             </div>
-            <div className="form-row">
-              <label>Categoria
-                <select value={form.category} onChange={e => setForm({...form, category: e.target.value})}>
-                  {['Pomadas','Shampoos','Cremes','Óleos','Acessórios','Kits'].map(c => <option key={c}>{c}</option>)}
-                </select>
-              </label>
-              <label>URL da imagem<input placeholder="https://..." value={form.image_url} onChange={e => setForm({...form, image_url: e.target.value})}/></label>
-            </div>
+            <label>Categoria
+              <select value={form.category} onChange={e => setForm({...form, category: e.target.value})}>
+                {['Pomadas','Shampoos','Cremes','Óleos','Acessórios','Kits'].map(c => <option key={c}>{c}</option>)}
+              </select>
+            </label>
+            <ImageUploadField label="Foto do produto" value={form.image_url} onChange={url => setForm({...form, image_url: url})}/>
             <button className="gold-button" style={{marginTop:24}} onClick={save} disabled={saving}>{saving ? 'Salvando...' : 'Adicionar produto'}<ChevronRight size={16}/></button>
           </div>
         </Modal>
