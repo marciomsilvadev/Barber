@@ -99,14 +99,42 @@ function Login({ onLogin, callbackError = "", initialMode = "login" }) {
 // -----------------------------------------------------------------------------
 // PUBLIC LANDING PAGE (Impeccable Design)
 // -----------------------------------------------------------------------------
+const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.REACT_APP_SUPABASE_ANON_KEY;
+
+async function buyProduct(product) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/create-checkout-session`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({ product }),
+    });
+    const { url, error } = await res.json();
+    if (error) { alert('Erro ao iniciar pagamento: ' + error); return; }
+    if (url) window.location.href = url;
+  } catch (e) {
+    alert('Erro de conexão. Tente novamente.');
+  }
+}
+
 function LandingPage({ onEnterApp }) {
   const [products, setProducts] = useState([]);
   const [services, setServices] = useState([]);
+  const [buying, setBuying] = useState(null);
 
   useEffect(() => {
     supabase.from('products').select('*').eq('is_active', true).limit(4).then(({ data }) => data && setProducts(data));
     supabase.from('services').select('*').eq('is_active', true).limit(3).then(({ data }) => data && setServices(data));
   }, []);
+
+  async function handleBuy(product) {
+    setBuying(product.id);
+    await buyProduct(product);
+    setBuying(null);
+  }
 
   return (
     <div className="landing-wrapper">
@@ -184,8 +212,14 @@ function LandingPage({ onEnterApp }) {
               </div>
               <h4>{p.name}</h4>
               <p>{p.category}</p>
-              <strong>R$ {p.price}</strong>
-              <button className="outline-button compact">Comprar</button>
+              <strong>R$ {parseFloat(p.price).toFixed(2)}</strong>
+              <button
+                className="gold-button compact buy-btn"
+                onClick={() => handleBuy(p)}
+                disabled={buying === p.id}
+              >
+                {buying === p.id ? 'Aguarde...' : 'Comprar agora'}
+              </button>
             </div>
           )) : (
             <div className="empty-state">Em breve nossa coleção completa de produtos.</div>
