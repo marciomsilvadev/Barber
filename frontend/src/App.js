@@ -354,7 +354,7 @@ function AppContent() {
       setUser({
         ...session.user,
         full_name: profile?.full_name || meta.full_name || meta.name || session.user.email,
-        role: profile?.role || 'client',
+        role: profile?.role || meta.role || 'client',
         tenant_id: profile?.tenant_id || null,
         ...(profile || {}),
       });
