@@ -1661,7 +1661,9 @@ function AdminBarbers({ user }) {
     <section className="admin-view fade-in">
       <div className="section-head">
         <div><h3>Equipe</h3><p className="section-sub">Gerencie seus profissionais e configure o WhatsApp de cada um</p></div>
-        <button className="gold-button compact" onClick={() => openModal()}><Plus size={15}/> Adicionar</button>
+        <div className="section-head-actions">
+          <button className="gold-button compact" onClick={() => openModal()}><Plus size={15}/> Adicionar</button>
+        </div>
       </div>
       {barbers.length === 0 ? (
         <div className="premium-empty">
@@ -1843,11 +1845,13 @@ function AdminServices({ user }) {
     <section className="admin-view fade-in">
       <div className="section-head">
         <div><h3>Catálogo de Serviços</h3><p className="section-sub">{services.length} serviço{services.length !== 1 ? 's' : ''} cadastrado{services.length !== 1 ? 's' : ''}</p></div>
-        <div style={{display:'flex', gap:8}}>
+        <div className="section-head-actions">
           <button className="outline-button compact" onClick={() => { setModalCatName(''); setCatModal(true); }}>
             <Plus size={15}/> Categorias
           </button>
-          <button className="gold-button compact" onClick={() => openModal(null)}><Plus size={15}/> Novo Serviço</button>
+          <button className="gold-button compact" onClick={() => openModal(null)}>
+            <Plus size={15}/> Novo Serviço
+          </button>
         </div>
       </div>
 
@@ -2133,11 +2137,13 @@ function AdminProducts({ user }) {
     <section className="admin-view fade-in">
       <div className="section-head">
         <div><h3>Boutique (E-commerce)</h3><p className="section-sub">{products.length} produto{products.length !== 1 ? 's' : ''} cadastrado{products.length !== 1 ? 's' : ''}</p></div>
-        <div style={{display:'flex', gap:8}}>
+        <div className="section-head-actions">
           <button className="outline-button compact" onClick={() => { setModalCatName(''); setCatModal(true); }}>
             <Plus size={15}/> Categorias
           </button>
-          <button className="gold-button compact" onClick={() => openModal(null)}><Plus size={15}/> Novo Produto</button>
+          <button className="gold-button compact" onClick={() => openModal(null)}>
+            <Plus size={15}/> Novo Produto
+          </button>
         </div>
       </div>
 
