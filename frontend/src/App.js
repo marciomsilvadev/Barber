@@ -237,92 +237,261 @@ function AdminApp({ user, onLogout }) {
   );
 }
 
+// ── Shared Modal ───────────────────────────────────────────────────────────────
+function Modal({ title, onClose, children }) {
+  return (
+    <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal admin-modal fade-in">
+        <button className="close-button" onClick={onClose}><X size={18} /></button>
+        <div className="eyebrow">ATELIER BARBER</div>
+        <h2>{title}</h2>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ── Barbers ────────────────────────────────────────────────────────────────────
 function AdminBarbers({ user }) {
   const [barbers, setBarbers] = useState([]);
+  const [modal, setModal] = useState(false);
+  const [form, setForm] = useState({ name: '', specialties: '', price: '', image: '' });
+  const [saving, setSaving] = useState(false);
+
   const load = useCallback(async () => {
     const { data } = await supabase.from('barbers').select('*').eq('tenant_id', user.tenant_id);
-    if(data) setBarbers(data);
+    if (data) setBarbers(data);
   }, [user.tenant_id]);
   useEffect(() => { load(); }, [load]);
-  
+
+  async function save() {
+    if (!form.name || !form.price) return;
+    setSaving(true);
+    await supabase.from('barbers').insert({
+      tenant_id: user.tenant_id,
+      name: form.name,
+      specialties: form.specialties ? form.specialties.split(',').map(s => s.trim()) : [],
+      price: parseFloat(form.price),
+      image: form.image || null,
+    });
+    setSaving(false);
+    setModal(false);
+    setForm({ name: '', specialties: '', price: '', image: '' });
+    load();
+  }
+
+  async function remove(id) {
+    await supabase.from('barbers').delete().eq('id', id);
+    load();
+  }
+
   return (
     <section className="admin-view fade-in">
-      <div className="section-head"><div><h3>Equipe</h3></div><button className="gold-button compact"><Plus size={15}/> Adicionar</button></div>
-      <div className="admin-list">
-        {barbers.length ? barbers.map(b => (
-          <article key={b.id} className="admin-row">
-            <img src={resolveImage(b.image, heroImage)} alt={b.name} />
-            <div><strong>{b.name}</strong><small>R$ {b.price} base</small></div>
-            <button className="icon-button danger"><Trash2 size={15} /></button>
-          </article>
-        )) : <div className="empty-state">Nenhum barbeiro cadastrado.</div>}
+      <div className="section-head">
+        <div><h3>Equipe</h3><p className="section-sub">Gerencie seus profissionais</p></div>
+        <button className="gold-button compact" onClick={() => setModal(true)}><Plus size={15}/> Adicionar</button>
       </div>
+      {barbers.length === 0 ? (
+        <div className="premium-empty">
+          <Scissors size={32} opacity={0.2}/>
+          <p>Nenhum barbeiro cadastrado ainda.</p>
+          <button className="outline-button compact" style={{width:'auto',margin:'16px auto 0'}} onClick={() => setModal(true)}>Adicionar primeiro barbeiro</button>
+        </div>
+      ) : (
+        <div className="pro-card-grid">
+          {barbers.map(b => (
+            <div key={b.id} className="pro-card">
+              <div className="pro-card-img">
+                {b.image ? <img src={b.image} alt={b.name}/> : <div className="pro-card-placeholder"><Scissors opacity={0.15} size={36}/></div>}
+              </div>
+              <div className="pro-card-body">
+                <strong className="pro-name">{b.name}</strong>
+                <div className="pro-meta"><Star size={11} fill="var(--gold)" color="var(--gold)"/> {b.rating?.toFixed(1) || '5.0'}</div>
+                {b.specialties?.length > 0 && <div className="pro-tags">{b.specialties.map(s => <span key={s}>{s}</span>)}</div>}
+                <div className="pro-footer">
+                  <strong className="pro-price">R$ {b.price}</strong>
+                  <button className="icon-button danger" onClick={() => remove(b.id)}><Trash2 size={14}/></button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {modal && (
+        <Modal title="Novo Profissional" onClose={() => setModal(false)}>
+          <div className="modal-form">
+            <label>Nome completo<input placeholder="Ex: Rafael Moura" value={form.name} onChange={e => setForm({...form, name: e.target.value})}/></label>
+            <label>Especialidades <span className="label-hint">(separe por vírgula)</span><input placeholder="Corte, Barba, Coloração" value={form.specialties} onChange={e => setForm({...form, specialties: e.target.value})}/></label>
+            <div className="form-row">
+              <label>Valor base (R$)<input type="number" placeholder="80" value={form.price} onChange={e => setForm({...form, price: e.target.value})}/></label>
+              <label>URL da foto <span className="label-hint">(opcional)</span><input placeholder="https://..." value={form.image} onChange={e => setForm({...form, image: e.target.value})}/></label>
+            </div>
+            <button className="gold-button" style={{marginTop:24}} onClick={save} disabled={saving}>{saving ? 'Salvando...' : 'Cadastrar profissional'}<ChevronRight size={16}/></button>
+          </div>
+        </Modal>
+      )}
     </section>
   );
 }
 
+// ── Services ───────────────────────────────────────────────────────────────────
 function AdminServices({ user }) {
   const [services, setServices] = useState([]);
+  const [modal, setModal] = useState(false);
+  const [form, setForm] = useState({ name: '', description: '', price: '', duration_minutes: '45', category: 'Barbearia' });
+  const [saving, setSaving] = useState(false);
+
   const load = useCallback(async () => {
     const { data } = await supabase.from('services').select('*').eq('tenant_id', user.tenant_id);
-    if(data) setServices(data);
+    if (data) setServices(data);
   }, [user.tenant_id]);
   useEffect(() => { load(); }, [load]);
 
-  async function createService() {
-    const name = window.prompt("Nome do Serviço:");
-    if (!name) return;
-    const price = window.prompt("Preço (R$):", "80");
-    await supabase.from('services').insert({ tenant_id: user.tenant_id, name, price, duration_minutes: 45, category: 'Barbearia' });
+  async function save() {
+    if (!form.name || !form.price) return;
+    setSaving(true);
+    await supabase.from('services').insert({
+      tenant_id: user.tenant_id, name: form.name, description: form.description,
+      price: parseFloat(form.price), duration_minutes: parseInt(form.duration_minutes), category: form.category,
+    });
+    setSaving(false); setModal(false);
+    setForm({ name: '', description: '', price: '', duration_minutes: '45', category: 'Barbearia' });
     load();
+  }
+
+  async function remove(id) {
+    await supabase.from('services').delete().eq('id', id); load();
   }
 
   return (
     <section className="admin-view fade-in">
-      <div className="section-head"><div><h3>Catálogo de Serviços</h3></div><button className="gold-button compact" onClick={createService}><Plus size={15}/> Adicionar</button></div>
-      <div className="admin-list">
-        {services.length ? services.map(s => (
-          <article key={s.id} className="admin-row">
-            <div className="icon-placeholder"><Scissors size={18}/></div>
-            <div><strong>{s.name}</strong><small>{s.category} · {s.duration_minutes} min</small></div>
-            <div style={{marginRight: 20}}><strong>R$ {s.price}</strong></div>
-            <button className="icon-button"><Edit2 size={15} /></button>
-          </article>
-        )) : <div className="empty-state">Para testar, crie a tabela services no SQL Editor primeiro.</div>}
+      <div className="section-head">
+        <div><h3>Catálogo de Serviços</h3><p className="section-sub">{services.length} serviço{services.length !== 1 ? 's' : ''} cadastrado{services.length !== 1 ? 's' : ''}</p></div>
+        <button className="gold-button compact" onClick={() => setModal(true)}><Plus size={15}/> Novo Serviço</button>
       </div>
+      {services.length === 0 ? (
+        <div className="premium-empty">
+          <CalendarDays size={32} opacity={0.2}/>
+          <p>Nenhum serviço cadastrado ainda.</p>
+          <button className="outline-button compact" style={{width:'auto',margin:'16px auto 0'}} onClick={() => setModal(true)}>Criar primeiro serviço</button>
+        </div>
+      ) : (
+        <div className="service-table">
+          {services.map(s => (
+            <div key={s.id} className="service-row">
+              <div className="service-icon-box"><Scissors size={16}/></div>
+              <div className="service-info"><strong>{s.name}</strong><span>{s.category} · {s.duration_minutes} min</span></div>
+              <div className="service-price">R$ {parseFloat(s.price).toFixed(2)}</div>
+              <button className="icon-button danger" onClick={() => remove(s.id)}><Trash2 size={14}/></button>
+            </div>
+          ))}
+        </div>
+      )}
+      {modal && (
+        <Modal title="Novo Serviço" onClose={() => setModal(false)}>
+          <div className="modal-form">
+            <label>Nome do serviço<input placeholder="Ex: Corte Clássico" value={form.name} onChange={e => setForm({...form, name: e.target.value})}/></label>
+            <label>Descrição <span className="label-hint">(opcional)</span><input placeholder="Corte com tesoura e alinhamento de barba" value={form.description} onChange={e => setForm({...form, description: e.target.value})}/></label>
+            <div className="form-row">
+              <label>Preço (R$)<input type="number" placeholder="80" value={form.price} onChange={e => setForm({...form, price: e.target.value})}/></label>
+              <label>Duração (min)<input type="number" placeholder="45" value={form.duration_minutes} onChange={e => setForm({...form, duration_minutes: e.target.value})}/></label>
+            </div>
+            <label>Categoria
+              <select value={form.category} onChange={e => setForm({...form, category: e.target.value})}>
+                {['Barbearia','Cabelo','Barba','Manicure','Estética','Combo'].map(c => <option key={c}>{c}</option>)}
+              </select>
+            </label>
+            <button className="gold-button" style={{marginTop:24}} onClick={save} disabled={saving}>{saving ? 'Salvando...' : 'Criar serviço'}<ChevronRight size={16}/></button>
+          </div>
+        </Modal>
+      )}
     </section>
   );
 }
 
+// ── Products ───────────────────────────────────────────────────────────────────
 function AdminProducts({ user }) {
   const [products, setProducts] = useState([]);
+  const [modal, setModal] = useState(false);
+  const [form, setForm] = useState({ name: '', description: '', price: '', stock_quantity: '0', category: 'Pomadas', image_url: '' });
+  const [saving, setSaving] = useState(false);
+
   const load = useCallback(async () => {
     const { data } = await supabase.from('products').select('*').eq('tenant_id', user.tenant_id);
-    if(data) setProducts(data);
+    if (data) setProducts(data);
   }, [user.tenant_id]);
   useEffect(() => { load(); }, [load]);
 
-  async function createProduct() {
-    const name = window.prompt("Nome do Produto:");
-    if (!name) return;
-    const price = window.prompt("Preço (R$):", "120");
-    await supabase.from('products').insert({ tenant_id: user.tenant_id, name, price, category: 'Cosméticos' });
+  async function save() {
+    if (!form.name || !form.price) return;
+    setSaving(true);
+    await supabase.from('products').insert({
+      tenant_id: user.tenant_id, name: form.name, description: form.description,
+      price: parseFloat(form.price), stock_quantity: parseInt(form.stock_quantity),
+      category: form.category, image_url: form.image_url || null,
+    });
+    setSaving(false); setModal(false);
+    setForm({ name: '', description: '', price: '', stock_quantity: '0', category: 'Pomadas', image_url: '' });
     load();
+  }
+
+  async function remove(id) {
+    await supabase.from('products').delete().eq('id', id); load();
   }
 
   return (
     <section className="admin-view fade-in">
-      <div className="section-head"><div><h3>Boutique (E-commerce)</h3></div><button className="gold-button compact" onClick={createProduct}><Plus size={15}/> Adicionar</button></div>
-      <div className="admin-list">
-        {products.length ? products.map(p => (
-          <article key={p.id} className="admin-row">
-            <div className="icon-placeholder"><ShoppingBag size={18}/></div>
-            <div><strong>{p.name}</strong><small>{p.category} · Estoque: {p.stock_quantity}</small></div>
-            <div style={{marginRight: 20}}><strong>R$ {p.price}</strong></div>
-            <button className="icon-button"><Edit2 size={15} /></button>
-          </article>
-        )) : <div className="empty-state">Nenhum produto cadastrado. Crie a tabela products no SQL Editor.</div>}
+      <div className="section-head">
+        <div><h3>Boutique (E-commerce)</h3><p className="section-sub">{products.length} produto{products.length !== 1 ? 's' : ''} cadastrado{products.length !== 1 ? 's' : ''}</p></div>
+        <button className="gold-button compact" onClick={() => setModal(true)}><Plus size={15}/> Novo Produto</button>
       </div>
+      {products.length === 0 ? (
+        <div className="premium-empty">
+          <ShoppingBag size={32} opacity={0.2}/>
+          <p>Nenhum produto na boutique ainda.</p>
+          <button className="outline-button compact" style={{width:'auto',margin:'16px auto 0'}} onClick={() => setModal(true)}>Adicionar primeiro produto</button>
+        </div>
+      ) : (
+        <div className="pro-card-grid">
+          {products.map(p => (
+            <div key={p.id} className="pro-card">
+              <div className="pro-card-img">
+                {p.image_url ? <img src={p.image_url} alt={p.name}/> : <div className="pro-card-placeholder"><ShoppingBag opacity={0.15} size={36}/></div>}
+              </div>
+              <div className="pro-card-body">
+                <strong className="pro-name">{p.name}</strong>
+                <div className="pro-meta"><span className="tag-category">{p.category}</span></div>
+                <div className="pro-meta" style={{marginTop:4,color:'#666',fontSize:11}}>Estoque: {p.stock_quantity} un.</div>
+                <div className="pro-footer">
+                  <strong className="pro-price">R$ {parseFloat(p.price).toFixed(2)}</strong>
+                  <button className="icon-button danger" onClick={() => remove(p.id)}><Trash2 size={14}/></button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {modal && (
+        <Modal title="Novo Produto" onClose={() => setModal(false)}>
+          <div className="modal-form">
+            <label>Nome do produto<input placeholder="Ex: Pomada Matte Premium" value={form.name} onChange={e => setForm({...form, name: e.target.value})}/></label>
+            <label>Descrição <span className="label-hint">(opcional)</span><input placeholder="Fixação forte, acabamento seco" value={form.description} onChange={e => setForm({...form, description: e.target.value})}/></label>
+            <div className="form-row">
+              <label>Preço (R$)<input type="number" placeholder="89.90" value={form.price} onChange={e => setForm({...form, price: e.target.value})}/></label>
+              <label>Estoque<input type="number" placeholder="0" value={form.stock_quantity} onChange={e => setForm({...form, stock_quantity: e.target.value})}/></label>
+            </div>
+            <div className="form-row">
+              <label>Categoria
+                <select value={form.category} onChange={e => setForm({...form, category: e.target.value})}>
+                  {['Pomadas','Shampoos','Cremes','Óleos','Acessórios','Kits'].map(c => <option key={c}>{c}</option>)}
+                </select>
+              </label>
+              <label>URL da imagem<input placeholder="https://..." value={form.image_url} onChange={e => setForm({...form, image_url: e.target.value})}/></label>
+            </div>
+            <button className="gold-button" style={{marginTop:24}} onClick={save} disabled={saving}>{saving ? 'Salvando...' : 'Adicionar produto'}<ChevronRight size={16}/></button>
+          </div>
+        </Modal>
+      )}
     </section>
   );
 }
