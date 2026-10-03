@@ -343,8 +343,21 @@ function AppContent() {
 
   async function handleSession(session) {
     if (session) {
-      const { data: profile } = await supabase.from('user_profiles').select('*').eq('id', session.user.id).single();
-      setUser({ ...session.user, ...profile });
+      const { data: profile, error } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
+      if (error) console.warn('Profile fetch error:', error.message);
+      // Merge: profile overrides session.user, but fallback to auth metadata
+      const meta = session.user.user_metadata || {};
+      setUser({
+        ...session.user,
+        full_name: profile?.full_name || meta.full_name || meta.name || session.user.email,
+        role: profile?.role || 'client',
+        tenant_id: profile?.tenant_id || null,
+        ...(profile || {}),
+      });
     } else {
       setUser(null);
     }
