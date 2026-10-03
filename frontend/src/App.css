@@ -250,6 +250,49 @@
 /* buy button on product card */
 .buy-btn { margin-top:12px; width:100%; }
 
+/* ── Category Filter Pills & Creator ────────────────────────────────────── */
+.category-filter-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  margin-bottom: 20px;
+  scrollbar-width: none;
+}
+.category-filter-row::-webkit-scrollbar { display: none; }
+.cat-pill {
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: #aaa;
+  padding: 6px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  border-radius: 20px;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+.cat-pill:hover { border-color: var(--gold-soft); color: #fff; }
+.cat-pill.active {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #000;
+  font-weight: 700;
+}
+.cat-pill.add-cat-pill {
+  border-style: dashed;
+  border-color: var(--gold);
+  color: var(--gold);
+  background: transparent;
+}
+.cat-pill.add-cat-pill:hover {
+  background: rgba(212, 175, 55, 0.15);
+  color: #fff;
+  border-color: var(--gold);
+}
+
 /* ── Payment Modal & Checkout Window ────────────────────────────────────── */
 .payment-modal-backdrop {
   position: fixed;

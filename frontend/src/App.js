@@ -20,6 +20,12 @@ function resolveImage(src, fallback) {
   return src;
 }
 
+// ── Auto Capitalize First Letter Helper ────────────────────────────────────────
+function autoCap(str) {
+  if (typeof str !== 'string' || !str) return str || '';
+  return str.replace(/^(\s*)([a-z\u00E0-\u00FD])/i, (_, space, char) => space + char.toUpperCase());
+}
+
 // -----------------------------------------------------------------------------
 // LOGIN COMPONENT
 // -----------------------------------------------------------------------------
@@ -69,7 +75,7 @@ function Login({ onLogin, callbackError = "", initialMode = "login" }) {
           
           <form onSubmit={submit}>
             {mode === "register" && (
-              <input placeholder="Seu nome" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
+              <input placeholder="Seu nome" value={form.name} onChange={e => setForm({ ...form, name: autoCap(e.target.value) })} required />
             )}
             <input type="email" placeholder="E-mail" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} required />
             <input type="password" placeholder="Senha" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} minLength="6" required />
@@ -460,8 +466,8 @@ function AdminBarbers({ user }) {
       {modal && (
         <Modal title="Novo Profissional" onClose={() => setModal(false)}>
           <div className="modal-form">
-            <label>Nome completo<input placeholder="Ex: Rafael Moura" value={form.name} onChange={e => setForm({...form, name: e.target.value})}/></label>
-            <label>Especialidades <span className="label-hint">(separe por vírgula)</span><input placeholder="Corte, Barba, Coloração" value={form.specialties} onChange={e => setForm({...form, specialties: e.target.value})}/></label>
+            <label>Nome completo<input placeholder="Ex: Rafael Moura" value={form.name} onChange={e => setForm({...form, name: autoCap(e.target.value)})}/></label>
+            <label>Especialidades <span className="label-hint">(separe por vírgula)</span><input placeholder="Corte, Barba, Coloração" value={form.specialties} onChange={e => setForm({...form, specialties: autoCap(e.target.value)})}/></label>
             <label>Valor base (R$)<input type="number" placeholder="80" value={form.price} onChange={e => setForm({...form, price: e.target.value})}/></label>
             <ImageUploadField label="Foto do profissional" value={form.image} onChange={url => setForm({...form, image: url})}/>
             <button className="gold-button" style={{marginTop:24}} onClick={save} disabled={saving}>{saving ? 'Salvando...' : 'Cadastrar profissional'}<ChevronRight size={16}/></button>
@@ -475,31 +481,88 @@ function AdminBarbers({ user }) {
 // ── Services ───────────────────────────────────────────────────────────────────
 function AdminServices({ user }) {
   const [services, setServices] = useState([]);
+  const [selectedCat, setSelectedCat] = useState('Todos');
+  const [customCategories, setCustomCategories] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('barber_custom_service_cats') || '[]');
+    } catch { return []; }
+  });
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ id: null, name: '', description: '', price: '', duration_minutes: '45', category: 'Barbearia' });
+  const [showNewCatInput, setShowNewCatInput] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [catModal, setCatModal] = useState(false);
+  const [modalCatName, setModalCatName] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const defaultCats = ['Barbearia', 'Cabelo', 'Barba', 'Manicure', 'Estética', 'Combo', 'Sobrancelha', 'Tratamento', 'Infantil'];
+  const allCategories = Array.from(new Set([
+    ...defaultCats,
+    ...customCategories,
+    ...services.map(s => s.category).filter(Boolean)
+  ]));
+
   const load = useCallback(async () => {
-    const { data } = await supabase.from('services').select('*').eq('tenant_id', user.tenant_id);
+    let query = supabase.from('services').select('*');
+    if (user.tenant_id) query = query.eq('tenant_id', user.tenant_id);
+    const { data } = await query;
     if (data) setServices(data);
   }, [user.tenant_id]);
+
   useEffect(() => { load(); }, [load]);
 
   function openModal(s = null) {
     if (s) {
-      setForm({ id: s.id, name: s.name, description: s.description || '', price: s.price, duration_minutes: s.duration_minutes, category: s.category });
+      setForm({ id: s.id, name: s.name, description: s.description || '', price: s.price, duration_minutes: s.duration_minutes, category: s.category || allCategories[0] });
     } else {
-      setForm({ id: null, name: '', description: '', price: '', duration_minutes: '45', category: 'Barbearia' });
+      setForm({ id: null, name: '', description: '', price: '', duration_minutes: '45', category: allCategories[0] || 'Barbearia' });
     }
+    setShowNewCatInput(false);
+    setNewCatName('');
     setModal(true);
+  }
+
+  function handleAddCategory() {
+    const trimmed = autoCap(newCatName.trim());
+    if (!trimmed) return;
+    if (!allCategories.includes(trimmed)) {
+      const updated = [...customCategories, trimmed];
+      setCustomCategories(updated);
+      localStorage.setItem('barber_custom_service_cats', JSON.stringify(updated));
+    }
+    setForm({ ...form, category: trimmed });
+    setNewCatName('');
+    setShowNewCatInput(false);
+  }
+
+  function handleCreateCategoryFromModal() {
+    const trimmed = autoCap(modalCatName.trim());
+    if (!trimmed) return;
+    if (!customCategories.includes(trimmed)) {
+      const updated = [...customCategories, trimmed];
+      setCustomCategories(updated);
+      localStorage.setItem('barber_custom_service_cats', JSON.stringify(updated));
+    }
+    setModalCatName('');
+  }
+
+  function handleDeleteCustomCategory(catToDelete) {
+    const updated = customCategories.filter(c => c !== catToDelete);
+    setCustomCategories(updated);
+    localStorage.setItem('barber_custom_service_cats', JSON.stringify(updated));
+    if (selectedCat === catToDelete) setSelectedCat('Todos');
   }
 
   async function save() {
     if (!form.name || !form.price) return;
     setSaving(true);
     const payload = {
-      tenant_id: user.tenant_id, name: form.name, description: form.description,
-      price: parseFloat(form.price), duration_minutes: parseInt(form.duration_minutes), category: form.category,
+      tenant_id: user.tenant_id || '77dab26d-b0de-49e0-995f-6dc1c9c4fbe8',
+      name: autoCap(form.name),
+      description: autoCap(form.description),
+      price: parseFloat(form.price),
+      duration_minutes: parseInt(form.duration_minutes),
+      category: autoCap(form.category),
     };
     if (form.id) {
       await supabase.from('services').update(payload).eq('id', form.id);
@@ -514,21 +577,58 @@ function AdminServices({ user }) {
     await supabase.from('services').delete().eq('id', id); load();
   }
 
+  const displayedServices = selectedCat === 'Todos'
+    ? services
+    : services.filter(s => s.category === selectedCat);
+
   return (
     <section className="admin-view fade-in">
       <div className="section-head">
         <div><h3>Catálogo de Serviços</h3><p className="section-sub">{services.length} serviço{services.length !== 1 ? 's' : ''} cadastrado{services.length !== 1 ? 's' : ''}</p></div>
-        <button className="gold-button compact" onClick={() => setModal(true)}><Plus size={15}/> Novo Serviço</button>
+        <div style={{display:'flex', gap:8}}>
+          <button className="outline-button compact" onClick={() => { setModalCatName(''); setCatModal(true); }}>
+            <Plus size={15}/> Categorias
+          </button>
+          <button className="gold-button compact" onClick={() => openModal(null)}><Plus size={15}/> Novo Serviço</button>
+        </div>
       </div>
+
+      {/* Category Filter Pills */}
+      {services.length > 0 && (
+        <div className="category-filter-row">
+          <button
+            className={`cat-pill ${selectedCat === 'Todos' ? 'active' : ''}`}
+            onClick={() => setSelectedCat('Todos')}
+          >
+            Todos ({services.length})
+          </button>
+          {allCategories.map(cat => (
+            <button
+              key={cat}
+              className={`cat-pill ${selectedCat === cat ? 'active' : ''}`}
+              onClick={() => setSelectedCat(cat)}
+            >
+              {cat}
+            </button>
+          ))}
+          <button
+            className="cat-pill add-cat-pill"
+            onClick={() => { setModalCatName(''); setCatModal(true); }}
+          >
+            + Nova Categoria
+          </button>
+        </div>
+      )}
+
       {services.length === 0 ? (
         <div className="premium-empty">
           <CalendarDays size={32} opacity={0.2}/>
           <p>Nenhum serviço cadastrado ainda.</p>
-          <button className="outline-button compact" style={{width:'auto',margin:'16px auto 0'}} onClick={() => setModal(true)}>Criar primeiro serviço</button>
+          <button className="outline-button compact" style={{width:'auto',margin:'16px auto 0'}} onClick={() => openModal(null)}>Criar primeiro serviço</button>
         </div>
       ) : (
         <div className="service-table">
-          {services.map(s => (
+          {displayedServices.map(s => (
             <div key={s.id} className="service-row">
               <div className="service-icon-box"><Scissors size={16}/></div>
               <div className="service-info"><strong>{s.name}</strong><span>{s.category} · {s.duration_minutes} min</span></div>
@@ -541,21 +641,125 @@ function AdminServices({ user }) {
           ))}
         </div>
       )}
+
       {modal && (
-        <Modal title="Novo Serviço" onClose={() => setModal(false)}>
+        <Modal title={form.id ? "Editar Serviço" : "Novo Serviço"} onClose={() => setModal(false)}>
           <div className="modal-form">
-            <label>Nome do serviço<input placeholder="Ex: Corte Clássico" value={form.name} onChange={e => setForm({...form, name: e.target.value})}/></label>
-            <label>Descrição <span className="label-hint">(opcional)</span><input placeholder="Corte com tesoura e alinhamento de barba" value={form.description} onChange={e => setForm({...form, description: e.target.value})}/></label>
+            <label>Nome do serviço<input placeholder="Ex: Corte Clássico" value={form.name} onChange={e => setForm({...form, name: autoCap(e.target.value)})}/></label>
+            <label>Descrição <span className="label-hint">(opcional)</span><input placeholder="Corte com tesoura e alinhamento de barba" value={form.description} onChange={e => setForm({...form, description: autoCap(e.target.value)})}/></label>
             <div className="form-row">
               <label>Preço (R$)<input type="number" placeholder="80" value={form.price} onChange={e => setForm({...form, price: e.target.value})}/></label>
               <label>Duração (min)<input type="number" placeholder="45" value={form.duration_minutes} onChange={e => setForm({...form, duration_minutes: e.target.value})}/></label>
             </div>
+            
             <label>Categoria
-              <select value={form.category} onChange={e => setForm({...form, category: e.target.value})}>
-                {['Barbearia','Cabelo','Barba','Manicure','Estética','Combo'].map(c => <option key={c}>{c}</option>)}
-              </select>
+              <div style={{display:'flex', gap:8, alignItems:'center', marginTop:4}}>
+                <select
+                  value={form.category}
+                  onChange={e => {
+                    if (e.target.value === '__NEW__') {
+                      setShowNewCatInput(true);
+                    } else {
+                      setForm({...form, category: e.target.value});
+                      setShowNewCatInput(false);
+                    }
+                  }}
+                  style={{flex:1}}
+                >
+                  {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                  <option value="__NEW__">+ Criar Nova Categoria...</option>
+                </select>
+                <button
+                  type="button"
+                  className="outline-button compact"
+                  style={{padding:'8px 12px', fontSize:11, whiteSpace:'nowrap'}}
+                  onClick={() => setShowNewCatInput(!showNewCatInput)}
+                >
+                  {showNewCatInput ? 'Cancelar' : '+ Nova Categoria'}
+                </button>
+              </div>
             </label>
-            <button className="gold-button" style={{marginTop:24}} onClick={save} disabled={saving}>{saving ? 'Salvando...' : 'Criar serviço'}<ChevronRight size={16}/></button>
+
+            {showNewCatInput && (
+              <div style={{display:'flex', gap:8, alignItems:'center', background:'#181818', padding:10, border:'1px solid var(--gold)', marginTop:6}}>
+                <input
+                  placeholder="Nome da nova categoria"
+                  value={newCatName}
+                  onChange={e => setNewCatName(autoCap(e.target.value))}
+                  style={{flex:1, background:'#111', border:'1px solid var(--line)', color:'#fff', padding:'8px 12px'}}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddCategory(); } }}
+                />
+                <button
+                  type="button"
+                  className="gold-button compact"
+                  style={{padding:'8px 14px'}}
+                  onClick={handleAddCategory}
+                >
+                  Adicionar
+                </button>
+              </div>
+            )}
+
+            <button className="gold-button" style={{marginTop:24}} onClick={save} disabled={saving}>{saving ? 'Salvando...' : (form.id ? 'Salvar alterações' : 'Criar serviço')}<ChevronRight size={16}/></button>
+          </div>
+        </Modal>
+      )}
+
+      {catModal && (
+        <Modal title="Gerenciar Categorias de Serviços" onClose={() => setCatModal(false)}>
+          <div className="modal-form">
+            <label>Criar nova categoria
+              <div style={{display:'flex', gap:8, marginTop:6}}>
+                <input
+                  placeholder="Ex: Barboterapia, Noivo, Coloração..."
+                  value={modalCatName}
+                  onChange={e => setModalCatName(autoCap(e.target.value))}
+                  style={{flex:1}}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleCreateCategoryFromModal(); } }}
+                />
+                <button
+                  type="button"
+                  className="gold-button compact"
+                  style={{padding:'8px 16px', whiteSpace:'nowrap'}}
+                  onClick={handleCreateCategoryFromModal}
+                >
+                  <Plus size={14}/> Criar
+                </button>
+              </div>
+            </label>
+
+            <div style={{marginTop:24}}>
+              <span style={{fontSize:11, color:'#888', textTransform:'uppercase', letterSpacing:1}}>Categorias Existentes</span>
+              <div style={{display:'flex', flexWrap:'wrap', gap:8, marginTop:10, maxHeight:220, overflowY:'auto', padding:'4px 0'}}>
+                {allCategories.map(c => {
+                  const isCustom = customCategories.includes(c);
+                  return (
+                    <div
+                      key={c}
+                      style={{
+                        display:'flex', alignItems:'center', gap:8,
+                        background:'#1a1a1a', border:'1px solid var(--line)',
+                        padding:'6px 12px', borderRadius:20, fontSize:12, color:'#eee'
+                      }}
+                    >
+                      <span>{c}</span>
+                      {isCustom ? (
+                        <button
+                          type="button"
+                          style={{background:'none', border:'none', color:'#d98080', cursor:'pointer', padding:0, display:'flex'}}
+                          onClick={() => handleDeleteCustomCategory(c)}
+                          title="Remover categoria personalizada"
+                        >
+                          <X size={13}/>
+                        </button>
+                      ) : (
+                        <span style={{fontSize:9, color:'#666', background:'#252525', padding:'1px 5px', borderRadius:4}}>padrão</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </Modal>
       )}
@@ -566,32 +770,89 @@ function AdminServices({ user }) {
 // ── Products ───────────────────────────────────────────────────────────────────
 function AdminProducts({ user }) {
   const [products, setProducts] = useState([]);
+  const [selectedCat, setSelectedCat] = useState('Todos');
+  const [customCategories, setCustomCategories] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('barber_custom_product_cats') || '[]');
+    } catch { return []; }
+  });
   const [modal, setModal] = useState(false);
   const [form, setForm] = useState({ id: null, name: '', description: '', price: '', stock_quantity: '0', category: 'Pomadas', image_url: '' });
+  const [showNewCatInput, setShowNewCatInput] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [catModal, setCatModal] = useState(false);
+  const [modalCatName, setModalCatName] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const defaultCats = ['Pomadas', 'Shampoos', 'Cremes', 'Óleos', 'Acessórios', 'Kits', 'Lâminas', 'Perfumaria'];
+  const allCategories = Array.from(new Set([
+    ...defaultCats,
+    ...customCategories,
+    ...products.map(p => p.category).filter(Boolean)
+  ]));
+
   const load = useCallback(async () => {
-    const { data } = await supabase.from('products').select('*').eq('tenant_id', user.tenant_id);
+    let query = supabase.from('products').select('*');
+    if (user.tenant_id) query = query.eq('tenant_id', user.tenant_id);
+    const { data } = await query;
     if (data) setProducts(data);
   }, [user.tenant_id]);
+
   useEffect(() => { load(); }, [load]);
 
   function openModal(p = null) {
     if (p) {
-      setForm({ id: p.id, name: p.name, description: p.description || '', price: p.price, stock_quantity: p.stock_quantity, category: p.category, image_url: p.image_url || '' });
+      setForm({ id: p.id, name: p.name, description: p.description || '', price: p.price, stock_quantity: p.stock_quantity, category: p.category || allCategories[0], image_url: p.image_url || '' });
     } else {
-      setForm({ id: null, name: '', description: '', price: '', stock_quantity: '0', category: 'Pomadas', image_url: '' });
+      setForm({ id: null, name: '', description: '', price: '', stock_quantity: '0', category: allCategories[0] || 'Pomadas', image_url: '' });
     }
+    setShowNewCatInput(false);
+    setNewCatName('');
     setModal(true);
+  }
+
+  function handleAddCategory() {
+    const trimmed = autoCap(newCatName.trim());
+    if (!trimmed) return;
+    if (!allCategories.includes(trimmed)) {
+      const updated = [...customCategories, trimmed];
+      setCustomCategories(updated);
+      localStorage.setItem('barber_custom_product_cats', JSON.stringify(updated));
+    }
+    setForm({ ...form, category: trimmed });
+    setNewCatName('');
+    setShowNewCatInput(false);
+  }
+
+  function handleCreateCategoryFromModal() {
+    const trimmed = autoCap(modalCatName.trim());
+    if (!trimmed) return;
+    if (!customCategories.includes(trimmed)) {
+      const updated = [...customCategories, trimmed];
+      setCustomCategories(updated);
+      localStorage.setItem('barber_custom_product_cats', JSON.stringify(updated));
+    }
+    setModalCatName('');
+  }
+
+  function handleDeleteCustomCategory(catToDelete) {
+    const updated = customCategories.filter(c => c !== catToDelete);
+    setCustomCategories(updated);
+    localStorage.setItem('barber_custom_product_cats', JSON.stringify(updated));
+    if (selectedCat === catToDelete) setSelectedCat('Todos');
   }
 
   async function save() {
     if (!form.name || !form.price) return;
     setSaving(true);
     const payload = {
-      tenant_id: user.tenant_id, name: form.name, description: form.description,
-      price: parseFloat(form.price), stock_quantity: parseInt(form.stock_quantity),
-      category: form.category, image_url: form.image_url || null,
+      tenant_id: user.tenant_id || '77dab26d-b0de-49e0-995f-6dc1c9c4fbe8',
+      name: autoCap(form.name),
+      description: autoCap(form.description),
+      price: parseFloat(form.price),
+      stock_quantity: parseInt(form.stock_quantity),
+      category: autoCap(form.category),
+      image_url: form.image_url || null,
     };
     if (form.id) {
       await supabase.from('products').update(payload).eq('id', form.id);
@@ -606,21 +867,58 @@ function AdminProducts({ user }) {
     await supabase.from('products').delete().eq('id', id); load();
   }
 
+  const displayedProducts = selectedCat === 'Todos'
+    ? products
+    : products.filter(p => p.category === selectedCat);
+
   return (
     <section className="admin-view fade-in">
       <div className="section-head">
         <div><h3>Boutique (E-commerce)</h3><p className="section-sub">{products.length} produto{products.length !== 1 ? 's' : ''} cadastrado{products.length !== 1 ? 's' : ''}</p></div>
-        <button className="gold-button compact" onClick={() => setModal(true)}><Plus size={15}/> Novo Produto</button>
+        <div style={{display:'flex', gap:8}}>
+          <button className="outline-button compact" onClick={() => { setModalCatName(''); setCatModal(true); }}>
+            <Plus size={15}/> Categorias
+          </button>
+          <button className="gold-button compact" onClick={() => openModal(null)}><Plus size={15}/> Novo Produto</button>
+        </div>
       </div>
+
+      {/* Category Filter Pills */}
+      {products.length > 0 && (
+        <div className="category-filter-row">
+          <button
+            className={`cat-pill ${selectedCat === 'Todos' ? 'active' : ''}`}
+            onClick={() => setSelectedCat('Todos')}
+          >
+            Todos ({products.length})
+          </button>
+          {allCategories.map(cat => (
+            <button
+              key={cat}
+              className={`cat-pill ${selectedCat === cat ? 'active' : ''}`}
+              onClick={() => setSelectedCat(cat)}
+            >
+              {cat}
+            </button>
+          ))}
+          <button
+            className="cat-pill add-cat-pill"
+            onClick={() => { setModalCatName(''); setCatModal(true); }}
+          >
+            + Nova Categoria
+          </button>
+        </div>
+      )}
+
       {products.length === 0 ? (
         <div className="premium-empty">
           <ShoppingBag size={32} opacity={0.2}/>
           <p>Nenhum produto na boutique ainda.</p>
-          <button className="outline-button compact" style={{width:'auto',margin:'16px auto 0'}} onClick={() => setModal(true)}>Adicionar primeiro produto</button>
+          <button className="outline-button compact" style={{width:'auto',margin:'16px auto 0'}} onClick={() => openModal(null)}>Adicionar primeiro produto</button>
         </div>
       ) : (
         <div className="pro-card-grid">
-          {products.map(p => (
+          {displayedProducts.map(p => (
             <div key={p.id} className="pro-card">
               <div className="pro-card-img">
                 {p.image_url ? <img src={p.image_url} alt={p.name}/> : <div className="pro-card-placeholder"><ShoppingBag opacity={0.15} size={36}/></div>}
@@ -641,22 +939,126 @@ function AdminProducts({ user }) {
           ))}
         </div>
       )}
+
       {modal && (
-        <Modal title="Novo Produto" onClose={() => setModal(false)}>
+        <Modal title={form.id ? "Editar Produto" : "Novo Produto"} onClose={() => setModal(false)}>
           <div className="modal-form">
-            <label>Nome do produto<input placeholder="Ex: Pomada Matte Premium" value={form.name} onChange={e => setForm({...form, name: e.target.value})}/></label>
-            <label>Descrição <span className="label-hint">(opcional)</span><input placeholder="Fixação forte, acabamento seco" value={form.description} onChange={e => setForm({...form, description: e.target.value})}/></label>
+            <label>Nome do produto<input placeholder="Ex: Pomada Matte Premium" value={form.name} onChange={e => setForm({...form, name: autoCap(e.target.value)})}/></label>
+            <label>Descrição <span className="label-hint">(opcional)</span><input placeholder="Fixação forte, acabamento seco" value={form.description} onChange={e => setForm({...form, description: autoCap(e.target.value)})}/></label>
             <div className="form-row">
               <label>Preço (R$)<input type="number" placeholder="89.90" value={form.price} onChange={e => setForm({...form, price: e.target.value})}/></label>
               <label>Estoque<input type="number" placeholder="0" value={form.stock_quantity} onChange={e => setForm({...form, stock_quantity: e.target.value})}/></label>
             </div>
+            
             <label>Categoria
-              <select value={form.category} onChange={e => setForm({...form, category: e.target.value})}>
-                {['Pomadas','Shampoos','Cremes','Óleos','Acessórios','Kits'].map(c => <option key={c}>{c}</option>)}
-              </select>
+              <div style={{display:'flex', gap:8, alignItems:'center', marginTop:4}}>
+                <select
+                  value={form.category}
+                  onChange={e => {
+                    if (e.target.value === '__NEW__') {
+                      setShowNewCatInput(true);
+                    } else {
+                      setForm({...form, category: e.target.value});
+                      setShowNewCatInput(false);
+                    }
+                  }}
+                  style={{flex:1}}
+                >
+                  {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                  <option value="__NEW__">+ Criar Nova Categoria...</option>
+                </select>
+                <button
+                  type="button"
+                  className="outline-button compact"
+                  style={{padding:'8px 12px', fontSize:11, whiteSpace:'nowrap'}}
+                  onClick={() => setShowNewCatInput(!showNewCatInput)}
+                >
+                  {showNewCatInput ? 'Cancelar' : '+ Nova Categoria'}
+                </button>
+              </div>
             </label>
+
+            {showNewCatInput && (
+              <div style={{display:'flex', gap:8, alignItems:'center', background:'#181818', padding:10, border:'1px solid var(--gold)', marginTop:6}}>
+                <input
+                  placeholder="Nome da nova categoria"
+                  value={newCatName}
+                  onChange={e => setNewCatName(autoCap(e.target.value))}
+                  style={{flex:1, background:'#111', border:'1px solid var(--line)', color:'#fff', padding:'8px 12px'}}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddCategory(); } }}
+                />
+                <button
+                  type="button"
+                  className="gold-button compact"
+                  style={{padding:'8px 14px'}}
+                  onClick={handleAddCategory}
+                >
+                  Adicionar
+                </button>
+              </div>
+            )}
+
             <ImageUploadField label="Foto do produto" value={form.image_url} onChange={url => setForm({...form, image_url: url})}/>
-            <button className="gold-button" style={{marginTop:24}} onClick={save} disabled={saving}>{saving ? 'Salvando...' : 'Adicionar produto'}<ChevronRight size={16}/></button>
+            <button className="gold-button" style={{marginTop:24}} onClick={save} disabled={saving}>{saving ? 'Salvando...' : (form.id ? 'Salvar alterações' : 'Adicionar produto')}<ChevronRight size={16}/></button>
+          </div>
+        </Modal>
+      )}
+
+      {catModal && (
+        <Modal title="Gerenciar Categorias de Produtos" onClose={() => setCatModal(false)}>
+          <div className="modal-form">
+            <label>Criar nova categoria
+              <div style={{display:'flex', gap:8, marginTop:6}}>
+                <input
+                  placeholder="Ex: Ceras, Barba, Acessórios, Óleos..."
+                  value={modalCatName}
+                  onChange={e => setModalCatName(autoCap(e.target.value))}
+                  style={{flex:1}}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleCreateCategoryFromModal(); } }}
+                />
+                <button
+                  type="button"
+                  className="gold-button compact"
+                  style={{padding:'8px 16px', whiteSpace:'nowrap'}}
+                  onClick={handleCreateCategoryFromModal}
+                >
+                  <Plus size={14}/> Criar
+                </button>
+              </div>
+            </label>
+
+            <div style={{marginTop:24}}>
+              <span style={{fontSize:11, color:'#888', textTransform:'uppercase', letterSpacing:1}}>Categorias Existentes</span>
+              <div style={{display:'flex', flexWrap:'wrap', gap:8, marginTop:10, maxHeight:220, overflowY:'auto', padding:'4px 0'}}>
+                {allCategories.map(c => {
+                  const isCustom = customCategories.includes(c);
+                  return (
+                    <div
+                      key={c}
+                      style={{
+                        display:'flex', alignItems:'center', gap:8,
+                        background:'#1a1a1a', border:'1px solid var(--line)',
+                        padding:'6px 12px', borderRadius:20, fontSize:12, color:'#eee'
+                      }}
+                    >
+                      <span>{c}</span>
+                      {isCustom ? (
+                        <button
+                          type="button"
+                          style={{background:'none', border:'none', color:'#d98080', cursor:'pointer', padding:0, display:'flex'}}
+                          onClick={() => handleDeleteCustomCategory(c)}
+                          title="Remover categoria personalizada"
+                        >
+                          <X size={13}/>
+                        </button>
+                      ) : (
+                        <span style={{fontSize:9, color:'#666', background:'#252525', padding:'1px 5px', borderRadius:4}}>padrão</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </Modal>
       )}
@@ -1321,6 +1723,7 @@ function ClientServices({ user, onGoToAppointments }) {
   const [payMode,  setPayMode]  = useState(null);    // 'card' | 'pix'
   const [parcelas, setParcelas] = useState(1);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedCat, setSelectedCat] = useState('Todos');
 
   useEffect(() => {
     // Load services and barbers for this tenant (or all if no tenant)
@@ -1332,6 +1735,11 @@ function ClientServices({ user, onGoToAppointments }) {
 
   const total = selected ? parseFloat(selected.price) : 0;
   const parcelValue = total / parcelas;
+
+  const availableCats = Array.from(new Set(services.map(s => s.category).filter(Boolean)));
+  const filteredServices = selectedCat === 'Todos'
+    ? services
+    : services.filter(s => s.category === selectedCat);
 
   function openCheckout() {
     if (!selected) return;
@@ -1349,15 +1757,37 @@ function ClientServices({ user, onGoToAppointments }) {
           </div>
         </header>
 
-        <div className="eyebrow" style={{marginBottom:16}}>NOSSOS SERVIÇOS</div>
+        <div className="eyebrow" style={{marginBottom:14}}>NOSSOS SERVIÇOS</div>
+
+        {/* Category Filter Pills */}
+        {availableCats.length > 0 && (
+          <div className="category-filter-row">
+            <button
+              className={`cat-pill ${selectedCat === 'Todos' ? 'active' : ''}`}
+              onClick={() => setSelectedCat('Todos')}
+            >
+              Todos ({services.length})
+            </button>
+            {availableCats.map(cat => (
+              <button
+                key={cat}
+                className={`cat-pill ${selectedCat === cat ? 'active' : ''}`}
+                onClick={() => setSelectedCat(cat)}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="client-service-grid">
-          {services.length === 0 && (
+          {filteredServices.length === 0 && (
             <div className="premium-empty" style={{gridColumn:'1/-1'}}>
               <Scissors size={28} opacity={0.2}/>
-              <p>Nenhum serviço disponível no momento.</p>
+              <p>Nenhum serviço nesta categoria no momento.</p>
             </div>
           )}
-          {services.map(s => (
+          {filteredServices.map(s => (
             <button
               key={s.id}
               className={`client-service-card ${selected?.id === s.id ? 'selected' : ''}`}
@@ -1602,7 +2032,7 @@ function ClientProfile({ user, onUpdate }) {
         <div className="profile-form">
           <div className="modal-form" style={{marginTop:0}}>
             <label>Nome completo
-              <input value={form.full_name} onChange={e => setForm({...form, full_name: e.target.value})}/>
+              <input value={form.full_name} onChange={e => setForm({...form, full_name: autoCap(e.target.value)})}/>
             </label>
             <label>E-mail
               <input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})}/>
@@ -1658,6 +2088,41 @@ function AppContent() {
   const [user, setUser]       = useState(null);
   const [loading, setLoading] = useState(true);
   const [showAuth, setShowAuth] = useState(null);
+
+  // Global listener: capitalizes the first letter of any text input automatically
+  useEffect(() => {
+    function handleGlobalInput(e) {
+      const target = e.target;
+      if (!target || !['INPUT', 'TEXTAREA'].includes(target.tagName)) return;
+      const type = (target.type || '').toLowerCase();
+      if (['email', 'password', 'number', 'date', 'time', 'file', 'checkbox', 'radio'].includes(type)) return;
+
+      const val = target.value;
+      if (val && val.length > 0) {
+        const capitalized = val.replace(/^(\s*)([a-z\u00E0-\u00FD])/i, (_, space, char) => space + char.toUpperCase());
+        if (capitalized !== val) {
+          const start = target.selectionStart;
+          const end = target.selectionEnd;
+          
+          const setter = target.tagName === 'TEXTAREA'
+            ? Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
+            : Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+          
+          if (setter) {
+            setter.call(target, capitalized);
+          } else {
+            target.value = capitalized;
+          }
+          if (target.setSelectionRange && start !== null) {
+            target.setSelectionRange(start, end);
+          }
+          target.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      }
+    }
+    window.addEventListener('input', handleGlobalInput, true);
+    return () => window.removeEventListener('input', handleGlobalInput, true);
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => handleSession(session));
