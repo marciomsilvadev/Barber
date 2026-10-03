@@ -77,10 +77,10 @@
 .landing-nav { position:fixed; top:0; left:0; right:0; height:80px; display:flex; align-items:center; justify-content:space-between; padding:0 8%; background:transparent; z-index:50; }
 .landing-nav.scrolled { background:rgba(9, 9, 9, 0.95); backdrop-filter:blur(10px); border-bottom:1px solid var(--line); }
 .nav-links { display:flex; align-items:center; gap:32px; font-size:12px; font-weight:600; color:var(--white); }
-.nav-links a { color:var(--white); text-decoration:none; transition:color 0.2s; }
+.nav-links a { color:var(--white); text-decoration:none; transition:color 0.2s; display:flex; align-items:center; }
 .nav-links a:hover { color:var(--gold); }
-.nav-links .gold-button { color:var(--black); height:40px; }
-.nav-links .outline-button { height:40px; padding:0 20px; }
+.nav-links .gold-button, .nav-links .outline-button { height:42px; padding:0 24px; font-size:11px; margin:0; }
+.nav-links .gold-button { color:var(--black); }
 
 .hero-section { min-height:100vh; position:relative; display:flex; align-items:center; padding-top:80px; }
 .hero-content { position:relative; z-index:2; padding:0 8%; max-width:800px; }
