@@ -1637,12 +1637,24 @@ function AdminApp({ user, onLogout }) {
   const [ordersCount, setOrdersCount] = useState(0);
 
   useEffect(() => {
-    function calculateCount() {
+    async function calculateCount() {
+      let dbCount = 0;
+      try {
+        const { data } = await supabase.from('appointments').select('id, status, payment_status');
+        if (data) {
+          dbCount = data.filter(a => a.status === 'Confirmado' || a.payment_status === 'Pago').length;
+        }
+      } catch {}
+
+      let localCount = 0;
       try {
         const stored = JSON.parse(localStorage.getItem('barber_all_appointments') || '[]');
         const active = stored.filter(a => a.status === 'Confirmado' || a.payment_status === 'Pago');
-        setLiveCount(active.length);
+        localCount = active.length;
       } catch {}
+
+      setLiveCount(Math.max(dbCount, localCount));
+
       try {
         const storedOrders = JSON.parse(localStorage.getItem('barber_all_orders') || '[]');
         const activeOrders = storedOrders.filter(o => o.status !== 'Entregue' && o.status !== 'Cancelado');
@@ -3247,13 +3259,24 @@ function AdminAppointments({ user, onGoToOrders }) {
     setLoading(true);
     let dbAppts = [];
     try {
+      // NOTE: 'phone' column does not exist on 'barbers' table in Supabase, only (name, image)
       let query = supabase
         .from('appointments')
-        .select('*, barbers(name, image, phone), user_profiles(full_name)')
+        .select('*, barbers(name, image), user_profiles(full_name)')
         .order('created_at', { ascending: false });
       if (user.tenant_id) query = query.eq('tenant_id', user.tenant_id);
       const { data, error } = await query;
-      if (!error && data) dbAppts = data;
+      if (!error && data) {
+        dbAppts = data;
+      } else if (error) {
+        console.warn('DB load with joins notice:', error.message);
+        // Fallback without joins to ensure appointments are never lost
+        const fallback = await supabase
+          .from('appointments')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (fallback.data) dbAppts = fallback.data;
+      }
     } catch (err) {
       console.warn('DB load notice:', err);
     }
@@ -3269,20 +3292,26 @@ function AdminAppointments({ user, onGoToOrders }) {
       setBarberPhones(storedPhones);
     } catch {}
 
-    // Merge DB and local storage records seamlessly
+    // Merge DB and local storage records seamlessly by String(id)
     const map = new Map();
-    localAppts.forEach(a => map.set(a.id, a));
+    localAppts.forEach(a => {
+      if (a && a.id) map.set(String(a.id), a);
+    });
     dbAppts.forEach(a => {
-      const local = map.get(a.id);
-      const bPhone = a.barbers?.phone || storedPhones[a.barber_id] || storedPhones[a.barbers?.name] || local?.barber_phone || '';
-      map.set(a.id, {
-        ...local,
-        ...a,
-        client_name: a.user_profiles?.full_name || local?.client_name || 'Cliente Atelier',
-        barber_name: a.barbers?.name || local?.barber_name || 'Profissional Atelier',
-        barber_phone: bPhone,
-        payment_method: local?.payment_method || (a.payment_status === 'Pago' ? 'Pagamento Aprovado' : 'Pendente'),
-      });
+      if (a && a.id) {
+        const local = map.get(String(a.id));
+        const bPhone = storedPhones[a.barber_id] || storedPhones[a.barbers?.name] || local?.barber_phone || '';
+        map.set(String(a.id), {
+          ...local,
+          ...a,
+          client_name: a.user_profiles?.full_name || local?.client_name || 'Cliente Atelier',
+          barber_name: a.barbers?.name || local?.barber_name || 'Profissional Atelier',
+          service_type: a.service_type || local?.service_type || local?.service_name || 'Serviço',
+          barber_phone: bPhone,
+          duration_minutes: a.duration_minutes || local?.duration_minutes || 30,
+          payment_method: local?.payment_method || (a.payment_status === 'Pago' ? 'Pagamento Aprovado' : 'Pendente'),
+        });
+      }
     });
 
     const list = Array.from(map.values()).map(a => ({
@@ -4323,22 +4352,102 @@ function ClientAppointments({ user, onGoToServices }) {
 
   const loadAppointments = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from('appointments')
-      .select('*, barbers(name, image)')
-      .eq('client_id', user.id)
-      .order('created_at', { ascending: false });
-    if (data) setAppointments(data);
+    let dbAppts = [];
+    try {
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*, barbers(name, image)')
+        .eq('client_id', user.id)
+        .order('created_at', { ascending: false });
+      if (!error && data) dbAppts = data;
+    } catch (e) {
+      console.warn('Notice loading client appointments from Supabase:', e);
+    }
+
+    let localAppts = [];
+    try {
+      const stored = JSON.parse(localStorage.getItem('barber_all_appointments') || '[]');
+      localAppts = stored.filter(a => {
+        if (!a) return false;
+        return (
+          String(a.client_id) === String(user.id) ||
+          (user.email && a.client_email === user.email) ||
+          (!a.client_id && !a.client_email)
+        );
+      });
+    } catch (e) {
+      console.warn('Notice loading local appointments:', e);
+    }
+
+    // Merge both sources seamlessly by String(id)
+    const map = new Map();
+    localAppts.forEach(a => {
+      if (a && a.id) map.set(String(a.id), a);
+    });
+    dbAppts.forEach(a => {
+      if (a && a.id) {
+        const local = map.get(String(a.id));
+        map.set(String(a.id), {
+          ...local,
+          ...a,
+          service_type: a.service_type || local?.service_type || local?.service_name || 'Serviço',
+          barber_name: a.barbers?.name || local?.barber_name || 'Profissional Atelier',
+          duration_minutes: a.duration_minutes || local?.duration_minutes || 30,
+        });
+      }
+    });
+
+    const list = Array.from(map.values()).sort((a, b) => {
+      const timeA = new Date(a.created_at || a.date).getTime();
+      const timeB = new Date(b.created_at || b.date).getTime();
+      return timeB - timeA;
+    });
+
+    setAppointments(list);
     setLoading(false);
-  }, [user.id]);
+  }, [user.id, user.email]);
 
   useEffect(() => {
     loadAppointments();
-  }, [loadAppointments]);
+
+    function handleNewAppt() {
+      loadAppointments();
+    }
+    function handleStorage(e) {
+      if (e.key === 'barber_all_appointments') {
+        loadAppointments();
+      }
+    }
+    window.addEventListener('barber_new_appointment', handleNewAppt);
+    window.addEventListener('storage', handleStorage);
+
+    const channel = supabase
+      .channel('client_appts_' + user.id)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, () => {
+        loadAppointments();
+      })
+      .subscribe();
+
+    return () => {
+      window.removeEventListener('barber_new_appointment', handleNewAppt);
+      window.removeEventListener('storage', handleStorage);
+      supabase.removeChannel(channel);
+    };
+  }, [loadAppointments, user.id]);
 
   async function cancelAppointment(id) {
     if (!window.confirm('Deseja realmente cancelar este agendamento?')) return;
-    await supabase.from('appointments').update({ status: 'Cancelado' }).eq('id', id);
+    try {
+      await supabase.from('appointments').update({ status: 'Cancelado' }).eq('id', id);
+    } catch (e) {
+      console.warn('Notice cancelling on Supabase:', e);
+    }
+    try {
+      const stored = JSON.parse(localStorage.getItem('barber_all_appointments') || '[]');
+      const updated = stored.map(a => String(a.id) === String(id) ? { ...a, status: 'Cancelado' } : a);
+      localStorage.setItem('barber_all_appointments', JSON.stringify(updated));
+      window.dispatchEvent(new CustomEvent('barber_new_appointment', { detail: { id, status: 'Cancelado' } }));
+    } catch {}
     loadAppointments();
   }
 
@@ -4367,9 +4476,9 @@ function ClientAppointments({ user, onGoToServices }) {
             <div key={a.id} className="appointment-card">
               <div className="appt-top">
                 <div>
-                  <h4>{a.service_type || 'Serviço'}</h4>
+                  <h4>{a.service_type || a.service_name || 'Serviço'}</h4>
                   <div style={{fontSize:11, color:'#888'}}>
-                    {a.barbers?.name ? `Com ${a.barbers.name}` : 'Profissional Atelier'}
+                    {a.barbers?.name ? `Com ${a.barbers.name}` : (a.barber_name ? `Com ${a.barber_name}` : 'Profissional Atelier')}
                   </div>
                 </div>
                 <div style={{display:'flex', gap:6}}>
@@ -4670,39 +4779,58 @@ function PaymentModal({
       }
 
       // 3. Salva o agendamento no Supabase
+      const isUUID = (str) => typeof str === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+      const validTenant = isUUID(selected.tenant_id)
+        ? selected.tenant_id
+        : (isUUID(user.tenant_id) ? user.tenant_id : '77dab26d-b0de-49e0-995f-6dc1c9c4fbe8');
+      const validBarberId = isUUID(assignedBarber?.id) ? assignedBarber.id : null;
+      const validServiceId = isUUID(selected.id) ? selected.id : null;
+
       const apptRecord = {
-        tenant_id: selected.tenant_id || user.tenant_id || '77dab26d-b0de-49e0-995f-6dc1c9c4fbe8',
+        tenant_id: validTenant,
         client_id: user.id,
-        barber_id: assignedBarber?.id || null,
-        service_id: selected.id,
+        barber_id: validBarberId,
+        service_id: validServiceId,
         service_type: selected.name,
         price: total,
         date: bookingDate,
         time: bookingTime,
-        duration_minutes: serviceDuration,
         status: 'Confirmado',
         payment_status: 'Pago',
       };
 
       let inserted = null;
-      let { data: insData, error: dbErr } = await supabase
-        .from('appointments')
-        .insert(apptRecord)
-        .select()
-        .single();
-
-      if (dbErr) {
-        console.warn('DB insert primary attempt notice:', dbErr.message);
-        // Schema fallback: if duration_minutes column does not exist on legacy DB, retry without it
-        const { duration_minutes, ...cleanRecord } = apptRecord;
-        const retry = await supabase
+      try {
+        const { data: insData, error: dbErr } = await supabase
           .from('appointments')
-          .insert(cleanRecord)
+          .insert(apptRecord)
           .select()
           .single();
-        inserted = retry.data;
-      } else {
-        inserted = insData;
+
+        if (!dbErr && insData) {
+          inserted = insData;
+        } else if (dbErr) {
+          console.warn('DB insert primary attempt notice:', dbErr.message);
+          // Try minimal columns fallback in case foreign keys on barber_id or service_id are restricted
+          const minRecord = {
+            tenant_id: validTenant,
+            client_id: user.id,
+            service_type: selected.name,
+            price: total,
+            date: bookingDate,
+            time: bookingTime,
+            status: 'Confirmado',
+            payment_status: 'Pago',
+          };
+          const { data: retryData } = await supabase
+            .from('appointments')
+            .insert(minRecord)
+            .select()
+            .single();
+          if (retryData) inserted = retryData;
+        }
+      } catch (dbEx) {
+        console.warn('Supabase insert notice:', dbEx);
       }
 
       const calculatedEnd = calculateEndTime(bookingTime, serviceDuration);
@@ -4721,7 +4849,7 @@ function PaymentModal({
 
       try {
         const stored = JSON.parse(localStorage.getItem('barber_all_appointments') || '[]');
-        const updated = [enrichedAppt, ...stored.filter(a => a.id !== enrichedAppt.id)];
+        const updated = [enrichedAppt, ...stored.filter(a => a && String(a.id) !== String(enrichedAppt.id))];
         localStorage.setItem('barber_all_appointments', JSON.stringify(updated));
         window.dispatchEvent(new CustomEvent('barber_new_appointment', { detail: enrichedAppt }));
       } catch (e) {
