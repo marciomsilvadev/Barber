@@ -1,67 +1,51 @@
 import { useCallback, useEffect, useState } from "react";
 import "@/App.css";
 import {
-  CalendarDays,
-  Camera,
-  CheckCircle2,
-  ChevronRight,
-  Clock3,
-  LogOut,
-  MapPin,
-  Scissors,
-  ShieldCheck,
-  Star,
-  Trash2,
-  UserRound,
-  X,
-  XCircle,
+  CalendarDays, Camera, ChevronRight, Clock3, LogOut, MapPin, Scissors,
+  ShieldCheck, Star, Trash2, X, ShoppingBag, Plus, Edit2, Play
 } from "lucide-react";
-import { BrowserRouter, useLocation } from "react-router-dom";
+import { BrowserRouter } from "react-router-dom";
 import { supabase } from "./lib/supabase";
 
 const heroImage = "https://images.unsplash.com/photo-1585747860715-2ba37e788b70?auto=format&fit=crop&w=1400&q=85";
 
-function resolveImage(src) {
-  if (!src) return heroImage;
+function resolveImage(src, fallback) {
+  if (!src) return fallback;
   if (src.startsWith("http")) return src;
   if (src.includes("/")) {
     const { data } = supabase.storage.from("avatars").getPublicUrl(src);
-    return data?.publicUrl || heroImage;
+    return data?.publicUrl || fallback;
   }
   return src;
 }
 
-function Login({ onLogin, callbackError = "" }) {
-  const [mode, setMode] = useState("login");
+// -----------------------------------------------------------------------------
+// LOGIN COMPONENT
+// -----------------------------------------------------------------------------
+function Login({ onLogin, callbackError = "", initialMode = "login" }) {
+  const [mode, setMode] = useState(initialMode);
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [error, setError] = useState(callbackError);
 
   async function submit(e) {
-    e.preventDefault();
-    setError("");
+    e.preventDefault(); setError("");
     try {
       if (mode === "register") {
         const { data, error: err } = await supabase.auth.signUp({
-          email: form.email,
-          password: form.password,
+          email: form.email, password: form.password,
           options: { data: { full_name: form.name } }
         });
         if (err) throw err;
-        
-        // Insere o perfil
         if (data.user) {
            await supabase.from("user_profiles").insert({
-             id: data.user.id,
-             full_name: form.name,
-             role: "client"
+             id: data.user.id, full_name: form.name, role: "client"
            });
         }
         alert("Conta criada! Você já pode entrar.");
         setMode("login");
       } else {
         const { error: err } = await supabase.auth.signInWithPassword({
-          email: form.email,
-          password: form.password
+          email: form.email, password: form.password
         });
         if (err) throw err;
       }
@@ -73,36 +57,38 @@ function Login({ onLogin, callbackError = "" }) {
   }
 
   return (
-    <main className="login-shell">
+    <main className="login-shell fade-in">
       <section className="login-image">
         <div className="brand-mark">ATELIER<span>BARBER</span></div>
-        <div className="login-quote">
-          <p>“O corte certo muda a forma como você entra no mundo.”</p>
+        <div className="login-quote slide-up">
+          <p>“Sua essência, nosso ofício.”</p>
           <span>— EXPERIÊNCIA ATELIER</span>
         </div>
       </section>
       <section className="login-panel">
-        <div className="login-inner">
-          <div className="eyebrow">MEMBERS CLUB · SÃO PAULO</div>
-          <h1 data-testid="login-heading">Seu próximo visual começa aqui.</h1>
-          <p className="subcopy">Agende seu momento. A gente cuida do resto.</p>
-          <button className="google-button" data-testid="google-login-button" onClick={google}>
+        <div className="login-inner slide-up" style={{ animationDelay: "0.1s" }}>
+          <div className="eyebrow">MEMBERS CLUB</div>
+          <h1>{mode === "login" ? "Bem-vindo de volta." : "Sua jornada começa aqui."}</h1>
+          <p className="subcopy">Acesso exclusivo para membros do Atelier.</p>
+          
+          <button className="google-button" onClick={google}>
             <span className="google-g">G</span>Continuar com Google
           </button>
-          <div className="divider"><span>ou entre com e-mail</span></div>
-          <form onSubmit={submit} data-testid="auth-form">
+          <div className="divider"><span>ou com e-mail</span></div>
+          
+          <form onSubmit={submit}>
             {mode === "register" && (
-              <input data-testid="auth-name-input" placeholder="Seu nome" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
+              <input placeholder="Seu nome" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
             )}
-            <input data-testid="auth-email-input" type="email" placeholder="E-mail" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} required />
-            <input data-testid="auth-password-input" type="password" placeholder="Senha" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} minLength="6" required />
-            <button className="gold-button" data-testid="auth-submit-button">
-              {mode === "login" ? "Entrar no Atelier" : "Criar minha conta"}<ChevronRight size={17} />
+            <input type="email" placeholder="E-mail" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} required />
+            <input type="password" placeholder="Senha" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} minLength="6" required />
+            <button className="gold-button">
+              {mode === "login" ? "Entrar" : "Criar conta"}<ChevronRight size={17} />
             </button>
           </form>
-          {error && <div className="error-message" data-testid="auth-error-message">{error}</div>}
-          <button className="switch-button" data-testid="auth-mode-toggle" onClick={() => setMode(mode === "login" ? "register" : "login")}>
-            {mode === "login" ? "Ainda não sou membro · Criar conta" : "Já tenho conta · Entrar"}
+          {error && <div className="error-message">{error}</div>}
+          <button className="switch-button" onClick={() => setMode(mode === "login" ? "register" : "login")}>
+            {mode === "login" ? "Ainda não é membro? Criar conta" : "Já sou membro. Entrar"}
           </button>
         </div>
       </section>
@@ -110,376 +96,127 @@ function Login({ onLogin, callbackError = "" }) {
   );
 }
 
-function BookingCard({ item, onPay, onReschedule, onCancel, showActions = true }) {
-  return (
-    <article className="booking-card" data-testid={`booking-card-${item.id}`}>
-      <div className="booking-date">
-        <strong>{item.date.split("-")[2] || item.date}</strong>
-        <span>{item.date.includes("-") ? item.date.split("-")[1] : "DATA"}</span>
-      </div>
-      <div className="booking-details">
-        <div className="eyebrow">{item.status}</div>
-        <h3>{item.service_type}</h3>
-        <p><Clock3 size={14} /> {item.time} · {item.barbers?.name || item.barber_id}</p>
-      </div>
-      <div className="booking-status">
-        <span className={item.payment_status === "Pago" ? "paid" : "pending"}>
-          {item.payment_status === "Pago" ? "PAGO" : "AGUARDANDO PAGAMENTO"}
-        </span>
-        {showActions && item.payment_status !== "Pago" && item.status !== "Cancelado" && (
-          <button className="pay-button" data-testid={`pay-booking-${item.id}`} onClick={() => onPay(item.id)}>
-            Pagar R$ {item.price}
-          </button>
-        )}
-        {showActions && item.status !== "Cancelado" && (
-          <div className="booking-actions">
-            <button className="manage-button" data-testid={`reschedule-booking-${item.id}`} onClick={() => onReschedule(item)}>Remarcar</button>
-            <button className="manage-button cancel" data-testid={`cancel-booking-${item.id}`} onClick={() => onCancel(item.id)}>Cancelar</button>
-          </div>
-        )}
-      </div>
-    </article>
-  );
-}
-
-function BookingModal({ barber, user, onClose, onBook }) {
-  const slots = ["09:00", "10:30", "14:00", "16:30"];
-  const [date, setDate] = useState("2026-03-28");
-  const [taken, setTaken] = useState([]);
-  const available = slots.filter(s => !taken.includes(s));
-  const [time, setTime] = useState(slots[0]);
-  const [service, setService] = useState("Corte + Barba");
-  const [error, setError] = useState("");
+// -----------------------------------------------------------------------------
+// PUBLIC LANDING PAGE (Impeccable Design)
+// -----------------------------------------------------------------------------
+function LandingPage({ onEnterApp }) {
+  const [products, setProducts] = useState([]);
+  const [services, setServices] = useState([]);
 
   useEffect(() => {
-    let active = true;
-    async function loadSlots() {
-      const { data } = await supabase.from('appointments').select('time').eq('barber_id', barber.id).eq('date', date).neq('status', 'Cancelado');
-      if (active && data) setTaken(data.map(d => d.time));
-    }
-    loadSlots();
-    return () => { active = false; };
-  }, [barber.id, date]);
-
-  useEffect(() => {
-    if (!available.includes(time) && available.length) setTime(available[0]);
-  }, [taken]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function submit() {
-    setError("");
-    try {
-      await onBook({ 
-        tenant_id: barber.tenant_id,
-        barber_id: barber.id, 
-        client_id: user.id,
-        service_type: service, 
-        price: barber.price, 
-        date, 
-        time 
-      });
-    } catch (err) { setError(err.message); }
-  }
+    supabase.from('products').select('*').eq('is_active', true).limit(4).then(({ data }) => data && setProducts(data));
+    supabase.from('services').select('*').eq('is_active', true).limit(3).then(({ data }) => data && setServices(data));
+  }, []);
 
   return (
-    <div className="modal-backdrop" data-testid="booking-modal">
-      <div className="modal">
-        <button className="close-button" data-testid="close-booking-modal" onClick={onClose}><X /></button>
-        <div className="eyebrow">RESERVAR COM {barber.name.toUpperCase()}</div>
-        <h2>Escolha seu momento.</h2>
-        <p className="subcopy">Precisão, cuidado e uma pausa na rotina.</p>
-        <label>Serviço
-          <select data-testid="service-select" value={service} onChange={e => setService(e.target.value)}>
-            <option>Corte + Barba</option>
-            <option>Corte clássico</option>
-            <option>Barba premium</option>
-          </select>
-        </label>
-        <div className="form-row">
-          <label>Data<input data-testid="booking-date-input" type="date" value={date} onChange={e => setDate(e.target.value)} /></label>
-          <label>Horário
-            <div className="slot-grid" data-testid="slot-grid">
-              {slots.map(slot => {
-                const busy = taken.includes(slot);
-                return (
-                  <button
-                    key={slot}
-                    type="button"
-                    className={`slot ${busy ? "busy" : ""} ${time === slot && !busy ? "active" : ""}`}
-                    data-testid={`slot-${slot}`}
-                    disabled={busy}
-                    onClick={() => !busy && setTime(slot)}
-                  >{slot}{busy && <span className="busy-tag">OCUPADO</span>}</button>
-                );
-              })}
-            </div>
-          </label>
+    <div className="landing-wrapper">
+      <nav className="landing-nav fade-in">
+        <div className="brand-mark" style={{ color: "var(--black)" }}>ATELIER<span>BARBER</span></div>
+        <div className="nav-links">
+          <a href="#servicos">Serviços</a>
+          <a href="#boutique">Boutique</a>
+          <button className="outline-button dark" onClick={() => onEnterApp("login")}>Membros</button>
+          <button className="gold-button compact" onClick={() => onEnterApp("register")}>Agendar Horário</button>
         </div>
-        <div className="modal-total"><span>Total estimado</span><strong>R$ {barber.price}</strong></div>
-        {error && <div className="error-message" data-testid="booking-error">{error}</div>}
-        <button
-          className="gold-button"
-          data-testid="booking-submit-button"
-          disabled={!available.length}
-          onClick={submit}
-        >{available.length ? "Confirmar horário" : "Sem horários disponíveis"} <ChevronRight size={17} /></button>
-      </div>
-    </div>
-  );
-}
+      </nav>
 
-function AdminPanel({ user, onBack }) {
-  const [barbers, setBarbers] = useState([]);
-  const [form, setForm] = useState({ name: "", email: "", password: "", price: 90, rating: 4.9, specialties: "" });
-  const [notice, setNotice] = useState("");
-  const [error, setError] = useState("");
-
-  const load = useCallback(async () => {
-    const { data } = await supabase.from('barbers').select('*').eq('tenant_id', user.tenant_id);
-    if(data) setBarbers(data);
-  }, [user.tenant_id]);
-  useEffect(() => { load(); }, [load]);
-
-  async function create(e) {
-    e.preventDefault();
-    setError(""); setNotice("");
-    try {
-      // Como não temos acesso à Edge Function de criação admin aqui facilmente sem expor chaves, 
-      // em um cenário real, você faria uma Edge Function no Supabase para isso. 
-      // Para demonstração local no frontend, avisaremos isso.
-      alert("A criação de usuários via frontend requer Edge Functions no Supabase (auth.admin.createUser). Configure no seu dashboard depois.");
-    } catch (err) { setError(err.message); }
-  }
-
-  async function remove(id) {
-    if (!window.confirm("Remover este barbeiro?")) return;
-    await supabase.from('barbers').delete().eq('id', id);
-    load();
-  }
-
-  return (
-    <section className="admin-view" data-testid="admin-panel">
-      <div className="section-head">
-        <div><div className="eyebrow">PAINEL ADMIN</div><h3>Equipe do Atelier</h3></div>
-      </div>
-      <div className="admin-grid">
-        <form className="admin-form" onSubmit={create} data-testid="admin-create-barber-form">
-          <div className="eyebrow">NOVO BARBEIRO</div>
-          <input data-testid="admin-barber-name" placeholder="Nome completo" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
-          <input data-testid="admin-barber-email" type="email" placeholder="E-mail de acesso" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} required />
-          <div className="form-row">
-            <label>Preço base (R$)<input data-testid="admin-barber-price" type="number" min="0" step="5" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} /></label>
+      <header className="hero-section">
+        <div className="hero-content slide-up">
+          <div className="eyebrow">SÃO PAULO</div>
+          <h1 className="hero-title">A arte do cuidado <br/><em>masculino.</em></h1>
+          <p className="hero-subtitle">Descubra uma experiência singular onde tradição e estilo contemporâneo se encontram.</p>
+          <div className="hero-actions">
+            <button className="gold-button" onClick={() => onEnterApp("register")}>Agendar agora <ChevronRight size={17}/></button>
+            <button className="text-button" style={{ color: "var(--white)" }}><Play size={15}/> Conheça o Atelier</button>
           </div>
-          <button className="gold-button" data-testid="admin-create-submit">Criar barbeiro <ChevronRight size={17} /></button>
-          {notice && <div className="notice" data-testid="admin-notice">{notice}<button onClick={() => setNotice("")}><X size={14} /></button></div>}
-          {error && <div className="error-message" data-testid="admin-error">{error}</div>}
-        </form>
-        <div className="admin-list" data-testid="admin-barbers-list">
-          {barbers.map(b => (
-            <article key={b.id} className="admin-row">
-              <img src={resolveImage(b.image)} alt={b.name} />
-              <div>
-                <strong>{b.name}</strong>
-                <small>R$ {b.price}</small>
+        </div>
+        <div className="hero-image-container fade-in">
+          <img src={heroImage} alt="Interior do Atelier" className="hero-bg" />
+          <div className="hero-gradient"></div>
+        </div>
+      </header>
+
+      <section id="servicos" className="services-section fade-in">
+        <div className="section-header-center">
+          <div className="eyebrow">NOSSOS SERVIÇOS</div>
+          <h2>Excelência em cada detalhe.</h2>
+        </div>
+        <div className="service-cards">
+          {services.length ? services.map(s => (
+            <div key={s.id} className="service-card">
+              <h3>{s.name}</h3>
+              <p>{s.description || 'Serviço de alta qualidade com especialistas.'}</p>
+              <div className="service-meta">
+                <span>{s.duration_minutes} min</span>
+                <strong>R$ {s.price}</strong>
               </div>
-              <button className="icon-button danger" data-testid={`admin-delete-${b.id}`} onClick={() => remove(b.id)}><Trash2 size={15} /></button>
-            </article>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function BarberDashboard({ user, onLogout }) {
-  const [barber, setBarber] = useState(null);
-  const [bookings, setBookings] = useState([]);
-  
-  const load = useCallback(async () => {
-    const { data: b } = await supabase.from('barbers').select('*').eq('user_id', user.id).single();
-    if (b) setBarber(b);
-    const { data: bks } = await supabase.from('appointments').select('*, user_profiles(full_name)').eq('barber_id', b?.id);
-    if(bks) setBookings(bks);
-  }, [user.id]);
-  useEffect(() => { load(); }, [load]);
-
-  if (!barber) return <div className="loading-screen">CARREGANDO<span>PERFIL</span></div>;
-
-  return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand-mark">ATELIER<span>BARBER</span></div>
-        <div className="location"><ShieldCheck size={14} /> ÁREA DO BARBEIRO</div>
-        <nav><button className="active"><Scissors size={18} />Meu perfil</button></nav>
-        <div className="sidebar-bottom">
-          <div className="member-card">
-            <div className="avatar">{user.full_name?.[0]}</div>
-            <div><strong data-testid="user-name">{user.full_name}</strong><small>BARBEIRO</small></div>
-          </div>
-          <button className="logout" data-testid="logout-button" onClick={onLogout}><LogOut size={16} />Sair</button>
-        </div>
-      </aside>
-      <main className="main-content">
-        <header className="topbar">
-          <div><div className="eyebrow">PERFIL PÚBLICO</div><h2 data-testid="page-title">Gerencie seu Atelier.</h2></div>
-        </header>
-        <section>
-          <div className="section-head">
-            <div><div className="eyebrow">AGENDA</div><h3>Próximos atendimentos</h3></div>
-          </div>
-          <div className="booking-list" data-testid="barber-booking-list">
-            {bookings.length ? bookings.map(item => <BookingCard key={item.id} item={item} showActions={false} onPay={() => {}} onReschedule={() => {}} onCancel={() => {}} />) : <div className="empty-state">Nenhum agendamento ainda.</div>}
-          </div>
-        </section>
-      </main>
-    </div>
-  );
-}
-
-function ClientApp({ user, onLogout }) {
-  const [barbers, setBarbers] = useState([]);
-  const [bookings, setBookings] = useState([]);
-  const [selected, setSelected] = useState(null);
-  const [active, setActive] = useState("agenda");
-  const [notice, setNotice] = useState("");
-
-  const loadData = useCallback(async () => {
-    // Busca todos os barbeiros
-    const { data: bData } = await supabase.from('barbers').select('*');
-    if (bData) setBarbers(bData);
-    
-    // Busca agendamentos do cliente
-    const { data: aData } = await supabase.from('appointments').select('*, barbers(name)').eq('client_id', user.id);
-    if (aData) setBookings(aData);
-  }, [user.id]);
-  
-  useEffect(() => { loadData(); }, [loadData]);
-
-  async function book(booking) {
-    try {
-      const { data, error } = await supabase.from('appointments').insert([booking]).select().single();
-      if (error) throw error;
-      setBookings(b => [...b, data]);
-      setSelected(null);
-      setActive("agenda");
-      setNotice("Horário reservado. Finalize o pagamento para garantir sua cadeira.");
-    } catch (err) {
-      setNotice(err.message);
-    }
-  }
-
-  async function pay(bookingId) {
-    try {
-       // Mock payment for now - in production use Stripe checkout
-       const { error } = await supabase.from('appointments').update({ payment_status: 'Pago' }).eq('id', bookingId);
-       if (error) throw error;
-       setBookings(bs => bs.map(item => item.id === bookingId ? { ...item, payment_status: "Pago" } : item));
-       setNotice("Pagamento simulado com sucesso! (Integração Stripe será via Edge Functions)");
-    } catch (err) { setNotice(`Falha: ${err.message}`); }
-  }
-
-  async function cancelBooking(id) {
-    await supabase.from('appointments').update({ status: 'Cancelado' }).eq('id', id);
-    setBookings(bs => bs.map(item => item.id === id ? { ...item, status: "Cancelado" } : item));
-    setNotice("Agendamento cancelado.");
-  }
-
-  async function rescheduleBooking(item) {
-    const date = window.prompt("Nova data (AAAA-MM-DD):", item.date);
-    const time = window.prompt("Novo horário:", item.time);
-    if (!date || !time) return;
-    await supabase.from('appointments').update({ date, time, status: 'Remarcado' }).eq('id', item.id);
-    setBookings(bs => bs.map(b => b.id === item.id ? { ...b, date, time, status: "Remarcado" } : b));
-    setNotice("Agendamento remarcado com sucesso.");
-  }
-
-  const upcoming = bookings.filter(item => item.status !== "Cancelado");
-
-  return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand-mark">ATELIER<span>BARBER</span></div>
-        <div className="location"><MapPin size={14} /> Jardins · São Paulo</div>
-        <nav>
-          <button className={active === "agenda" ? "active" : ""} onClick={() => setActive("agenda")}><CalendarDays size={18} />Minha agenda</button>
-          <button className={active === "barbers" ? "active" : ""} onClick={() => setActive("barbers")}><Scissors size={18} />Escolher barbeiro</button>
-          <button className={active === "history" ? "active" : ""} onClick={() => setActive("history")}><Clock3 size={18} />Histórico</button>
-        </nav>
-        <div className="sidebar-bottom">
-          <div className="member-card">
-            <div className="avatar">{user.full_name?.[0] || 'U'}</div>
-            <div><strong>{user.full_name || 'Membro'}</strong><small>MEMBRO ATELIER</small></div>
-          </div>
-          <button className="logout" onClick={onLogout}><LogOut size={16} />Sair</button>
-        </div>
-      </aside>
-      <main className="main-content">
-        <header className="topbar">
-          <div>
-            <div className="eyebrow">{active === "agenda" ? "VISÃO GERAL" : active === "barbers" ? "A EQUIPE" : "SUA JORNADA"}</div>
-            <h2>{active === "agenda" ? `Olá.` : active === "barbers" ? "Escolha seu especialista." : "Seus momentos Atelier."}</h2>
-          </div>
-        </header>
-        {notice && <div className="notice">{notice}<button onClick={() => setNotice("")}><X size={15} /></button></div>}
-
-        {active === "agenda" && (
-          <>
-            <section className="hero-banner">
-              <div>
-                <div className="eyebrow">ATELIER EXPERIENCE</div>
-                <h1>Seu estilo,<br /><em>bem cuidado.</em></h1>
-                <p>Tempo para você. Precisão em cada detalhe.</p>
-                <button className="outline-button" onClick={() => setActive("barbers")}>Agendar horário <ChevronRight size={16} /></button>
-              </div>
-              <img src={heroImage} alt="Interior elegante" />
-            </section>
-            <section className="section-head">
-              <div><div className="eyebrow">AGENDA</div><h3>Seus próximos horários</h3></div>
-            </section>
-            <div className="booking-list">
-              {upcoming.length ? upcoming.map(item => (
-                <BookingCard key={item.id} item={item} onPay={pay} onReschedule={rescheduleBooking} onCancel={cancelBooking} />
-              )) : <div className="empty-state">Sua agenda está esperando por você. Escolha um barbeiro para começar.</div>}
             </div>
-          </>
-        )}
+          )) : (
+            <>
+              <div className="service-card">
+                <h3>Corte Clássico</h3><p>Alinhamento perfeito com tesoura e máquina.</p>
+                <div className="service-meta"><span>45 min</span><strong>R$ 80</strong></div>
+              </div>
+              <div className="service-card">
+                <h3>Barba Terapia</h3><p>Toalha quente, navalha e hidratação profunda.</p>
+                <div className="service-meta"><span>30 min</span><strong>R$ 60</strong></div>
+              </div>
+              <div className="service-card">
+                <h3>Estética Facial</h3><p>Limpeza de pele e cuidados avançados.</p>
+                <div className="service-meta"><span>60 min</span><strong>R$ 120</strong></div>
+              </div>
+            </>
+          )}
+        </div>
+      </section>
 
-        {active === "barbers" && (
-          <section className="barber-grid">
-            {barbers.map(barber => (
-              <article className="barber-card" key={barber.id}>
-                <img src={resolveImage(barber.image)} alt={barber.name} />
-                <div className="barber-info">
-                  <div className="rating"><Star size={13} fill="currentColor" /> {barber.rating || 5.0}</div>
-                  <h3>{barber.name}</h3>
-                  <div className="barber-bottom">
-                    <strong>R$ {barber.price}</strong>
-                    <button className="gold-button compact" onClick={() => setSelected(barber)}>Ver horários <ChevronRight size={15} /></button>
-                  </div>
-                </div>
-              </article>
-            ))}
-          </section>
-        )}
+      <section id="boutique" className="boutique-section fade-in">
+        <div className="section-header-center">
+          <div className="eyebrow">BOUTIQUE</div>
+          <h2>Leve o Atelier com você.</h2>
+          <p className="subcopy" style={{textAlign:"center", margin:"10px auto 40px"}}>Produtos premium selecionados pelos nossos especialistas.</p>
+        </div>
+        <div className="product-grid">
+          {products.length ? products.map(p => (
+            <div key={p.id} className="product-card">
+              <div className="product-img-box">
+                {p.image_url ? <img src={p.image_url} alt={p.name} /> : <div className="product-placeholder"><ShoppingBag opacity={0.2} size={40}/></div>}
+              </div>
+              <h4>{p.name}</h4>
+              <p>{p.category}</p>
+              <strong>R$ {p.price}</strong>
+              <button className="outline-button compact">Comprar</button>
+            </div>
+          )) : (
+            <div className="empty-state">Em breve nossa coleção completa de produtos.</div>
+          )}
+        </div>
+      </section>
 
-        {active === "history" && (
-          <section className="history-list">
-            {bookings.length ? bookings.map(item => <BookingCard key={item.id} item={item} onPay={pay} onReschedule={rescheduleBooking} onCancel={cancelBooking} />) : <div className="empty-state">Nenhum atendimento no histórico ainda.</div>}
-          </section>
-        )}
-      </main>
-
-      {selected && <BookingModal user={user} barber={selected} onClose={() => setSelected(null)} onBook={book} />}
+      <footer className="landing-footer">
+        <div className="brand-mark">ATELIER<span>BARBER</span></div>
+        <p>© 2026 Atelier Barber. Todos os direitos reservados.</p>
+      </footer>
     </div>
   );
 }
 
+// -----------------------------------------------------------------------------
+// ADMIN PANEL (Products, Services, Barbers)
+// -----------------------------------------------------------------------------
 function AdminApp({ user, onLogout }) {
+  const [activeTab, setActiveTab] = useState("barbers");
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand-mark">ATELIER<span>BARBER</span></div>
         <div className="location"><ShieldCheck size={14} /> ADMIN</div>
-        <nav><button className="active"><Scissors size={18} />Barbeiros</button></nav>
+        <nav>
+          <button className={activeTab === "barbers" ? "active" : ""} onClick={() => setActiveTab("barbers")}><Scissors size={18} />Equipe</button>
+          <button className={activeTab === "services" ? "active" : ""} onClick={() => setActiveTab("services")}><CalendarDays size={18} />Serviços</button>
+          <button className={activeTab === "products" ? "active" : ""} onClick={() => setActiveTab("products")}><ShoppingBag size={18} />Produtos (Loja)</button>
+        </nav>
         <div className="sidebar-bottom">
           <div className="member-card">
             <div className="avatar">{user.full_name?.[0] || 'A'}</div>
@@ -490,27 +227,117 @@ function AdminApp({ user, onLogout }) {
       </aside>
       <main className="main-content">
         <header className="topbar">
-          <div><div className="eyebrow">PAINEL</div><h2>Gerencie sua equipe.</h2></div>
+          <div><div className="eyebrow">PAINEL</div><h2>Gestão do Atelier.</h2></div>
         </header>
-        <AdminPanel user={user} onBack={() => {}} />
+        {activeTab === "barbers" && <AdminBarbers user={user} />}
+        {activeTab === "services" && <AdminServices user={user} />}
+        {activeTab === "products" && <AdminProducts user={user} />}
       </main>
     </div>
   );
 }
 
+function AdminBarbers({ user }) {
+  const [barbers, setBarbers] = useState([]);
+  const load = useCallback(async () => {
+    const { data } = await supabase.from('barbers').select('*').eq('tenant_id', user.tenant_id);
+    if(data) setBarbers(data);
+  }, [user.tenant_id]);
+  useEffect(() => { load(); }, [load]);
+  
+  return (
+    <section className="admin-view fade-in">
+      <div className="section-head"><div><h3>Equipe</h3></div><button className="gold-button compact"><Plus size={15}/> Adicionar</button></div>
+      <div className="admin-list">
+        {barbers.length ? barbers.map(b => (
+          <article key={b.id} className="admin-row">
+            <img src={resolveImage(b.image, heroImage)} alt={b.name} />
+            <div><strong>{b.name}</strong><small>R$ {b.price} base</small></div>
+            <button className="icon-button danger"><Trash2 size={15} /></button>
+          </article>
+        )) : <div className="empty-state">Nenhum barbeiro cadastrado.</div>}
+      </div>
+    </section>
+  );
+}
+
+function AdminServices({ user }) {
+  const [services, setServices] = useState([]);
+  const load = useCallback(async () => {
+    const { data } = await supabase.from('services').select('*').eq('tenant_id', user.tenant_id);
+    if(data) setServices(data);
+  }, [user.tenant_id]);
+  useEffect(() => { load(); }, [load]);
+
+  async function createService() {
+    const name = window.prompt("Nome do Serviço:");
+    if (!name) return;
+    const price = window.prompt("Preço (R$):", "80");
+    await supabase.from('services').insert({ tenant_id: user.tenant_id, name, price, duration_minutes: 45, category: 'Barbearia' });
+    load();
+  }
+
+  return (
+    <section className="admin-view fade-in">
+      <div className="section-head"><div><h3>Catálogo de Serviços</h3></div><button className="gold-button compact" onClick={createService}><Plus size={15}/> Adicionar</button></div>
+      <div className="admin-list">
+        {services.length ? services.map(s => (
+          <article key={s.id} className="admin-row">
+            <div className="icon-placeholder"><Scissors size={18}/></div>
+            <div><strong>{s.name}</strong><small>{s.category} · {s.duration_minutes} min</small></div>
+            <div style={{marginRight: 20}}><strong>R$ {s.price}</strong></div>
+            <button className="icon-button"><Edit2 size={15} /></button>
+          </article>
+        )) : <div className="empty-state">Para testar, crie a tabela services no SQL Editor primeiro.</div>}
+      </div>
+    </section>
+  );
+}
+
+function AdminProducts({ user }) {
+  const [products, setProducts] = useState([]);
+  const load = useCallback(async () => {
+    const { data } = await supabase.from('products').select('*').eq('tenant_id', user.tenant_id);
+    if(data) setProducts(data);
+  }, [user.tenant_id]);
+  useEffect(() => { load(); }, [load]);
+
+  async function createProduct() {
+    const name = window.prompt("Nome do Produto:");
+    if (!name) return;
+    const price = window.prompt("Preço (R$):", "120");
+    await supabase.from('products').insert({ tenant_id: user.tenant_id, name, price, category: 'Cosméticos' });
+    load();
+  }
+
+  return (
+    <section className="admin-view fade-in">
+      <div className="section-head"><div><h3>Boutique (E-commerce)</h3></div><button className="gold-button compact" onClick={createProduct}><Plus size={15}/> Adicionar</button></div>
+      <div className="admin-list">
+        {products.length ? products.map(p => (
+          <article key={p.id} className="admin-row">
+            <div className="icon-placeholder"><ShoppingBag size={18}/></div>
+            <div><strong>{p.name}</strong><small>{p.category} · Estoque: {p.stock_quantity}</small></div>
+            <div style={{marginRight: 20}}><strong>R$ {p.price}</strong></div>
+            <button className="icon-button"><Edit2 size={15} /></button>
+          </article>
+        )) : <div className="empty-state">Nenhum produto cadastrado. Crie a tabela products no SQL Editor.</div>}
+      </div>
+    </section>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// APP CONTENT / ROUTER
+// -----------------------------------------------------------------------------
 function AppContent() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showAuth, setShowAuth] = useState(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      handleSession(session);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      handleSession(session);
-    });
-
+    supabase.auth.getSession().then(({ data: { session } }) => handleSession(session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => handleSession(session));
     return () => subscription.unsubscribe();
   }, []);
 
@@ -527,14 +354,40 @@ function AppContent() {
   async function handleLogout() {
     await supabase.auth.signOut();
     setUser(null);
+    setShowAuth(null);
   }
 
   if (loading) return <div className="loading-screen">ATELIER<span>BARBER</span></div>;
-  if (!user) return <Login onLogin={setUser} />;
+  
+  if (!user) {
+    if (showAuth) return <Login onLogin={setUser} initialMode={showAuth} />;
+    return <LandingPage onEnterApp={setShowAuth} />;
+  }
 
   if (user.role === "admin") return <AdminApp user={user} onLogout={handleLogout} />;
-  if (user.role === "barber") return <BarberDashboard user={user} onLogout={handleLogout} />;
-  return <ClientApp user={user} onLogout={handleLogout} />;
+  
+  return (
+    <div className="app-shell fade-in">
+      <aside className="sidebar">
+        <div className="brand-mark">ATELIER<span>BARBER</span></div>
+        <div className="location"><MapPin size={14} /> Cliente</div>
+        <nav><button className="active"><CalendarDays size={18} />Minha agenda</button></nav>
+        <div className="sidebar-bottom">
+          <div className="member-card">
+            <div className="avatar">{user.full_name?.[0] || 'U'}</div>
+            <div><strong>{user.full_name}</strong><small>MEMBRO</small></div>
+          </div>
+          <button className="logout" onClick={handleLogout}><LogOut size={16} />Sair</button>
+        </div>
+      </aside>
+      <main className="main-content">
+        <header className="topbar">
+          <div><div className="eyebrow">VISÃO GERAL</div><h2>Olá, {user.full_name?.split(' ')[0]}.</h2></div>
+        </header>
+        <div className="empty-state">Área do cliente. O agendamento está em manutenção para integração com os novos Serviços Dinâmicos.</div>
+      </main>
+    </div>
+  );
 }
 
 export default function App() { return <BrowserRouter><AppContent /></BrowserRouter>; }

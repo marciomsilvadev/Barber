@@ -65,3 +65,68 @@
 @media (max-width:900px) {
   .admin-grid, .barber-dashboard { grid-template-columns:1fr; }
 }
+
+/* Animations */
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+.fade-in { animation: fadeIn 0.8s ease forwards; }
+.slide-up { animation: slideUp 0.8s ease forwards; }
+
+/* Landing Page */
+.landing-wrapper { min-height:100vh; background:var(--black); overflow-x:hidden; }
+.landing-nav { position:fixed; top:0; left:0; right:0; height:80px; display:flex; align-items:center; justify-content:space-between; padding:0 8%; background:rgba(255, 255, 255, 0.95); z-index:50; backdrop-filter:blur(10px); }
+.nav-links { display:flex; align-items:center; gap:32px; font-size:12px; font-weight:600; color:var(--black); }
+.nav-links a { color:var(--black); text-decoration:none; transition:color 0.2s; }
+.nav-links a:hover { color:var(--gold); }
+.nav-links .gold-button { color:var(--black); height:40px; }
+.outline-button.dark { color:var(--black); border-color:var(--black); height:40px; padding:0 20px; }
+.outline-button.dark:hover { background:var(--black); color:var(--white); border-color:var(--black); }
+
+.hero-section { min-height:100vh; display:grid; grid-template-columns:1fr 1fr; padding-top:80px; }
+.hero-content { display:flex; flex-direction:column; justify-content:center; padding:0 12% 0 16%; }
+.hero-title { font:500 70px/1.05 'Playfair Display',serif; margin:24px 0 20px; }
+.hero-title em { color:var(--gold); font-style:italic; }
+.hero-subtitle { color:var(--muted); font-size:16px; line-height:1.7; max-width:400px; margin-bottom:40px; }
+.hero-actions { display:flex; align-items:center; gap:24px; }
+.hero-actions .gold-button { width:auto; padding:0 30px; }
+.hero-image-container { position:relative; overflow:hidden; }
+.hero-bg { width:100%; height:100%; object-fit:cover; filter:saturate(0.8) brightness(0.9); }
+.hero-gradient { position:absolute; inset:0; background:linear-gradient(90deg, var(--black) 0%, rgba(9,9,9,0) 30%); }
+
+.section-header-center { text-align:center; padding:100px 20px 60px; }
+.section-header-center h2 { font:500 42px 'Playfair Display',serif; margin:15px 0 0; }
+
+.services-section { background:var(--surface); padding-bottom:100px; }
+.service-cards { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:24px; padding:0 8%; max-width:1400px; margin:0 auto; }
+.service-card { background:var(--black); border:1px solid var(--line); padding:40px; transition:transform 0.3s, border-color 0.3s; }
+.service-card:hover { transform:translateY(-5px); border-color:var(--gold-soft); }
+.service-card h3 { font:500 24px 'Playfair Display',serif; margin:0 0 12px; }
+.service-card p { color:var(--muted); font-size:13px; line-height:1.6; margin-bottom:30px; min-height:42px; }
+.service-meta { display:flex; justify-content:space-between; align-items:center; border-top:1px solid var(--line); padding-top:20px; }
+.service-meta span { color:var(--gold); font-size:11px; letter-spacing:0.1em; }
+.service-meta strong { font-size:20px; font-weight:600; }
+
+.boutique-section { padding-bottom:120px; }
+.product-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:32px; padding:0 8%; max-width:1400px; margin:0 auto; }
+.product-card { background:var(--card); border:1px solid var(--line); padding:20px; text-align:center; transition:transform 0.3s; }
+.product-card:hover { transform:translateY(-5px); }
+.product-img-box { height:240px; background:#111; margin-bottom:20px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+.product-img-box img { width:100%; height:100%; object-fit:cover; }
+.product-placeholder { color:var(--line); }
+.product-card h4 { font:500 18px 'Playfair Display',serif; margin:0 0 5px; }
+.product-card p { color:var(--gold-soft); font-size:11px; letter-spacing:0.1em; margin-bottom:15px; }
+.product-card strong { display:block; font-size:18px; margin-bottom:20px; }
+.product-card .outline-button { width:100%; margin-top:0; }
+
+.landing-footer { border-top:1px solid var(--line); padding:60px 8%; text-align:center; }
+.landing-footer p { color:#555; font-size:11px; margin-top:20px; }
+
+.icon-placeholder { width:40px; height:40px; background:#151515; display:grid; place-items:center; color:var(--gold-soft); }
+
+@media (max-width:900px) {
+  .hero-section { grid-template-columns:1fr; padding-top:80px; }
+  .hero-content { padding:60px 8%; text-align:center; align-items:center; }
+  .hero-gradient { background:linear-gradient(0deg, var(--black) 0%, rgba(9,9,9,0) 40%); }
+  .landing-nav { justify-content:center; }
+  .nav-links { display:none; }
+}
