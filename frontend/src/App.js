@@ -327,7 +327,7 @@ function Modal({ title, onClose, children }) {
 function AdminBarbers({ user }) {
   const [barbers, setBarbers] = useState([]);
   const [modal, setModal] = useState(false);
-  const [form, setForm] = useState({ name: '', specialties: '', price: '', image: '' });
+  const [form, setForm] = useState({ id: null, name: '', specialties: '', price: '', image: '' });
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
@@ -336,19 +336,32 @@ function AdminBarbers({ user }) {
   }, [user.tenant_id]);
   useEffect(() => { load(); }, [load]);
 
+  function openModal(b = null) {
+    if (b) {
+      setForm({ id: b.id, name: b.name, specialties: (b.specialties || []).join(', '), price: b.price, image: b.image || '' });
+    } else {
+      setForm({ id: null, name: '', specialties: '', price: '', image: '' });
+    }
+    setModal(true);
+  }
+
   async function save() {
     if (!form.name || !form.price) return;
     setSaving(true);
-    await supabase.from('barbers').insert({
+    const payload = {
       tenant_id: user.tenant_id,
       name: form.name,
       specialties: form.specialties ? form.specialties.split(',').map(s => s.trim()) : [],
       price: parseFloat(form.price),
       image: form.image || null,
-    });
+    };
+    if (form.id) {
+      await supabase.from('barbers').update(payload).eq('id', form.id);
+    } else {
+      await supabase.from('barbers').insert(payload);
+    }
     setSaving(false);
     setModal(false);
-    setForm({ name: '', specialties: '', price: '', image: '' });
     load();
   }
 
@@ -382,7 +395,10 @@ function AdminBarbers({ user }) {
                 {b.specialties?.length > 0 && <div className="pro-tags">{b.specialties.map(s => <span key={s}>{s}</span>)}</div>}
                 <div className="pro-footer">
                   <strong className="pro-price">R$ {b.price}</strong>
-                  <button className="icon-button danger" onClick={() => remove(b.id)}><Trash2 size={14}/></button>
+                  <div style={{display:'flex', gap:6}}>
+                    <button className="icon-button" onClick={() => openModal(b)}><Edit2 size={14}/></button>
+                    <button className="icon-button danger" onClick={() => remove(b.id)}><Trash2 size={14}/></button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -408,7 +424,7 @@ function AdminBarbers({ user }) {
 function AdminServices({ user }) {
   const [services, setServices] = useState([]);
   const [modal, setModal] = useState(false);
-  const [form, setForm] = useState({ name: '', description: '', price: '', duration_minutes: '45', category: 'Barbearia' });
+  const [form, setForm] = useState({ id: null, name: '', description: '', price: '', duration_minutes: '45', category: 'Barbearia' });
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
@@ -417,15 +433,28 @@ function AdminServices({ user }) {
   }, [user.tenant_id]);
   useEffect(() => { load(); }, [load]);
 
+  function openModal(s = null) {
+    if (s) {
+      setForm({ id: s.id, name: s.name, description: s.description || '', price: s.price, duration_minutes: s.duration_minutes, category: s.category });
+    } else {
+      setForm({ id: null, name: '', description: '', price: '', duration_minutes: '45', category: 'Barbearia' });
+    }
+    setModal(true);
+  }
+
   async function save() {
     if (!form.name || !form.price) return;
     setSaving(true);
-    await supabase.from('services').insert({
+    const payload = {
       tenant_id: user.tenant_id, name: form.name, description: form.description,
       price: parseFloat(form.price), duration_minutes: parseInt(form.duration_minutes), category: form.category,
-    });
+    };
+    if (form.id) {
+      await supabase.from('services').update(payload).eq('id', form.id);
+    } else {
+      await supabase.from('services').insert(payload);
+    }
     setSaving(false); setModal(false);
-    setForm({ name: '', description: '', price: '', duration_minutes: '45', category: 'Barbearia' });
     load();
   }
 
@@ -452,7 +481,10 @@ function AdminServices({ user }) {
               <div className="service-icon-box"><Scissors size={16}/></div>
               <div className="service-info"><strong>{s.name}</strong><span>{s.category} · {s.duration_minutes} min</span></div>
               <div className="service-price">R$ {parseFloat(s.price).toFixed(2)}</div>
-              <button className="icon-button danger" onClick={() => remove(s.id)}><Trash2 size={14}/></button>
+              <div style={{display:'flex', gap:6}}>
+                <button className="icon-button" onClick={() => openModal(s)}><Edit2 size={14}/></button>
+                <button className="icon-button danger" onClick={() => remove(s.id)}><Trash2 size={14}/></button>
+              </div>
             </div>
           ))}
         </div>
@@ -483,7 +515,7 @@ function AdminServices({ user }) {
 function AdminProducts({ user }) {
   const [products, setProducts] = useState([]);
   const [modal, setModal] = useState(false);
-  const [form, setForm] = useState({ name: '', description: '', price: '', stock_quantity: '0', category: 'Pomadas', image_url: '' });
+  const [form, setForm] = useState({ id: null, name: '', description: '', price: '', stock_quantity: '0', category: 'Pomadas', image_url: '' });
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
@@ -492,16 +524,29 @@ function AdminProducts({ user }) {
   }, [user.tenant_id]);
   useEffect(() => { load(); }, [load]);
 
+  function openModal(p = null) {
+    if (p) {
+      setForm({ id: p.id, name: p.name, description: p.description || '', price: p.price, stock_quantity: p.stock_quantity, category: p.category, image_url: p.image_url || '' });
+    } else {
+      setForm({ id: null, name: '', description: '', price: '', stock_quantity: '0', category: 'Pomadas', image_url: '' });
+    }
+    setModal(true);
+  }
+
   async function save() {
     if (!form.name || !form.price) return;
     setSaving(true);
-    await supabase.from('products').insert({
+    const payload = {
       tenant_id: user.tenant_id, name: form.name, description: form.description,
       price: parseFloat(form.price), stock_quantity: parseInt(form.stock_quantity),
       category: form.category, image_url: form.image_url || null,
-    });
+    };
+    if (form.id) {
+      await supabase.from('products').update(payload).eq('id', form.id);
+    } else {
+      await supabase.from('products').insert(payload);
+    }
     setSaving(false); setModal(false);
-    setForm({ name: '', description: '', price: '', stock_quantity: '0', category: 'Pomadas', image_url: '' });
     load();
   }
 
@@ -534,7 +579,10 @@ function AdminProducts({ user }) {
                 <div className="pro-meta" style={{marginTop:4,color:'#666',fontSize:11}}>Estoque: {p.stock_quantity} un.</div>
                 <div className="pro-footer">
                   <strong className="pro-price">R$ {parseFloat(p.price).toFixed(2)}</strong>
-                  <button className="icon-button danger" onClick={() => remove(p.id)}><Trash2 size={14}/></button>
+                  <div style={{display:'flex', gap:6}}>
+                    <button className="icon-button" onClick={() => openModal(p)}><Edit2 size={14}/></button>
+                    <button className="icon-button danger" onClick={() => remove(p.id)}><Trash2 size={14}/></button>
+                  </div>
                 </div>
               </div>
             </div>
