@@ -2518,134 +2518,144 @@ function AdminOrders({ user }) {
             <p>Nenhum pedido encontrado para este filtro.</p>
           </div>
         ) : (
-          <div className="admin-appt-list">
-            {filteredOrders.map(o => {
-              const dateStr = o.created_at ? new Date(o.created_at).toLocaleDateString('pt-BR') : '';
-              const timeStr = o.created_at ? new Date(o.created_at).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' }) : '';
-              const isDelivery = o.delivery_type === 'delivery';
+          <div className="admin-appt-list-wrap">
+            <div className="admin-appt-list">
+              <div className="admin-appt-header">
+                <span>Pedido</span>
+                <span>Cliente</span>
+                <span>Itens & Entrega</span>
+                <span style={{textAlign:'right'}}>Pagamento</span>
+                <span>WhatsApp</span>
+                <span style={{textAlign:'center'}}>Status</span>
+                <span style={{textAlign:'right'}}>Ações</span>
+              </div>
 
-              return (
-                <div key={o.id} className="admin-appt-card order-card">
-                  {/* Order ID & Date */}
-                  <div className="aac-date-col">
-                    <span className="today-badge" style={{background:'#222', color:'var(--gold)', border:'1px solid var(--gold-soft)'}}>
-                      {isDelivery ? 'ENTREGA' : 'RETIRADA'}
-                    </span>
-                    <strong className="aac-time" style={{fontSize:13}}>#{String(o.id).slice(0, 10)}</strong>
-                    <span className="aac-date">{dateStr} {timeStr}</span>
-                  </div>
+              {filteredOrders.map(o => {
+                const dateStr = o.created_at ? new Date(o.created_at).toLocaleDateString('pt-BR') : '';
+                const timeStr = o.created_at ? new Date(o.created_at).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' }) : '';
+                const isDelivery = o.delivery_type === 'delivery';
+                const payMethodLabel = o.payment_method === 'Pagamento Aprovado' ? 'Aprovado' : (o.payment_method || 'Cartão');
 
-                  {/* Customer Info */}
-                  <div className="aac-client-col">
-                    <div className="aac-avatar">{o.client_name?.[0] || 'C'}</div>
-                    <div>
-                      <strong className="aac-client-name">{o.client_name || 'Cliente Boutique'}</strong>
-                      {o.client_phone ? (
-                        <a
-                          href={`https://wa.me/${cleanWhatsAppNumber(o.client_phone)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="client-wa-link"
-                          style={{marginTop:2}}
-                          title="Conversar com cliente no WhatsApp"
-                        >
-                          <Phone size={10}/> {o.client_phone}
-                        </a>
-                      ) : (
-                        <span className="aac-client-email">Sem telefone</span>
-                      )}
+                return (
+                  <div key={o.id} className="admin-appt-card order-card">
+                    {/* Order ID & Date */}
+                    <div className="aac-date-col">
+                      <span className="today-badge" style={{background:'#222', color:'var(--gold)', border:'1px solid var(--gold-soft)'}}>
+                        {isDelivery ? 'ENTREGA' : 'RETIRADA'}
+                      </span>
+                      <strong className="aac-time" style={{fontSize:13}}>#{String(o.id).slice(0, 10)}</strong>
+                      <span className="aac-date">{dateStr} {timeStr}</span>
                     </div>
-                  </div>
 
-                  {/* Items and Delivery */}
-                  <div className="aac-service-col" style={{flex:1.5}}>
-                    <strong style={{color:'var(--gold)'}}>
-                      {(o.items || []).map(i => `${i.quantity || 1}x ${i.name}`).join(', ')}
-                    </strong>
-                    <span style={{fontSize:11, color:'#aaa', marginTop:3}}>
-                      {isDelivery ? `🛵 ${o.delivery_address}` : `🏪 Retirada no Atelier`}
-                    </span>
-                  </div>
-
-                  {/* Total & Payment */}
-                  <div className="aac-payment-col">
-                    <strong className="aac-price">R$ {parseFloat(o.total_price || 0).toFixed(2)}</strong>
-                    <div style={{display:'flex', gap:6, marginTop:4}}>
-                      <span className="appt-badge paid">✓ PAGO</span>
-                      <span className="payment-method-tag">{o.payment_method || 'Cartão'}</span>
+                    {/* Customer Info */}
+                    <div className="aac-client-col">
+                      <div className="aac-avatar">{o.client_name?.[0] || 'C'}</div>
+                      <div>
+                        <strong className="aac-client-name">{o.client_name || 'Cliente Boutique'}</strong>
+                        {o.client_phone ? (
+                          <a
+                            href={`https://wa.me/${cleanWhatsAppNumber(o.client_phone)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="client-wa-link"
+                            title="Conversar com cliente no WhatsApp"
+                          >
+                            <Phone size={10}/> {o.client_phone}
+                          </a>
+                        ) : (
+                          <span className="aac-client-email">Sem telefone</span>
+                        )}
+                      </div>
                     </div>
-                  </div>
 
-                  {/* WhatsApp Quick Actions */}
-                  <div className="aac-wa-col">
-                    <div className="aac-wa-buttons">
-                      {o.client_phone && (
-                        <a
-                          href={getCustomerWhatsAppOrderUrl(o, estWA.name)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="wa-btn-chip barber"
-                          title="Avisar cliente sobre o status do pedido no WhatsApp"
-                        >
-                          <MessageCircle size={12} color="#25D366"/>
-                          <span>Avisar Cliente</span>
-                        </a>
-                      )}
-                      {estWA.phone && (
-                        <a
-                          href={getWhatsAppUrlForOrder(o, estWA.phone, estWA.name)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="wa-btn-chip establishment"
-                          title="Notificar responsável pela barbearia no WhatsApp"
-                        >
-                          <Send size={12} color="var(--gold)"/>
-                          <span>Avisar Loja</span>
-                        </a>
-                      )}
+                    {/* Items and Delivery */}
+                    <div className="aac-service-col">
+                      <strong>
+                        {(o.items || []).map(i => `${i.quantity || 1}x ${i.name}`).join(', ')}
+                      </strong>
+                      <span>
+                        {isDelivery ? `🛵 ${o.delivery_address}` : `🏪 Retirada no Atelier`}
+                      </span>
                     </div>
-                  </div>
 
-                  {/* Status Badge */}
-                  <div className="aac-status-col">
-                    <span className={`appt-badge ${o.status === 'Entregue' ? 'completed' : o.status === 'Cancelado' ? 'cancelled' : 'confirmed'}`}>
-                      {o.status || 'Confirmado'}
-                    </span>
-                  </div>
+                    {/* Total & Payment */}
+                    <div className="aac-payment-col">
+                      <strong className="aac-price">R$ {parseFloat(o.total_price || 0).toFixed(2)}</strong>
+                      <div className="aac-payment-meta">
+                        <span className="appt-badge paid">✓ PAGO</span>
+                        <span className="payment-method-tag" title={o.payment_method}>{payMethodLabel}</span>
+                      </div>
+                    </div>
 
-                  {/* Actions */}
-                  <div className="aac-actions-col">
-                    {o.status === 'Confirmado' && (
+                    {/* WhatsApp Quick Actions */}
+                    <div className="aac-wa-col">
+                      <div className="aac-wa-buttons">
+                        {o.client_phone && (
+                          <a
+                            href={getCustomerWhatsAppOrderUrl(o, estWA.name)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="wa-btn-chip barber"
+                            title="Avisar cliente sobre o status do pedido no WhatsApp"
+                          >
+                            <MessageCircle size={12} color="#25D366"/>
+                            <span>Avisar Cliente</span>
+                          </a>
+                        )}
+                        {estWA.phone && (
+                          <a
+                            href={getWhatsAppUrlForOrder(o, estWA.phone, estWA.name)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="wa-btn-chip establishment"
+                            title="Notificar responsável pela barbearia no WhatsApp"
+                          >
+                            <Send size={12} color="var(--gold)"/>
+                            <span>Avisar Loja</span>
+                          </a>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Status Badge */}
+                    <div className="aac-status-col">
+                      <span className={`appt-badge ${o.status === 'Entregue' ? 'completed' : o.status === 'Cancelado' ? 'cancelled' : 'confirmed'}`}>
+                        {o.status || 'Confirmado'}
+                      </span>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="aac-actions-col">
+                      {o.status === 'Confirmado' && (
+                        <button
+                          className="gold-button compact"
+                          onClick={() => updateOrderStatus(o.id, isDelivery ? 'Em Trânsito' : 'Pronto p/ Retirada')}
+                          title={isDelivery ? 'Marcar que saiu para entrega' : 'Marcar pronto para retirar'}
+                        >
+                          <Check size={13}/> {isDelivery ? 'Despachar' : 'Pronto'}
+                        </button>
+                      )}
+                      {(o.status === 'Pronto p/ Retirada' || o.status === 'Em Trânsito') && (
+                        <button
+                          className="gold-button compact"
+                          onClick={() => updateOrderStatus(o.id, 'Entregue')}
+                          title="Confirmar entrega finalizada"
+                        >
+                          <Check size={13}/> Entregue
+                        </button>
+                      )}
                       <button
-                        className="gold-button compact"
-                        style={{padding:'6px 12px', fontSize:11}}
-                        onClick={() => updateOrderStatus(o.id, isDelivery ? 'Em Trânsito' : 'Pronto p/ Retirada')}
-                        title={isDelivery ? 'Marcar que saiu para entrega' : 'Marcar pronto para retirar'}
+                        className="outline-button compact"
+                        onClick={() => setSelectedReceipt(o)}
+                        title="Ver Comprovante"
                       >
-                        <Check size={13}/> {isDelivery ? 'Despachar' : 'Pronto'}
+                        Recibo
                       </button>
-                    )}
-                    {(o.status === 'Pronto p/ Retirada' || o.status === 'Em Trânsito') && (
-                      <button
-                        className="gold-button compact"
-                        style={{padding:'6px 12px', fontSize:11}}
-                        onClick={() => updateOrderStatus(o.id, 'Entregue')}
-                        title="Confirmar entrega finalizada"
-                      >
-                        <Check size={13}/> Entregue
-                      </button>
-                    )}
-                    <button
-                      className="outline-button compact"
-                      style={{padding:'6px 10px', fontSize:11}}
-                      onClick={() => setSelectedReceipt(o)}
-                    >
-                      Recibo
-                    </button>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
@@ -3106,11 +3116,23 @@ function AdminAppointments({ user, onGoToOrders }) {
             <p>Nenhum agendamento encontrado para este filtro.</p>
           </div>
         ) : (
-          <div className="admin-appt-list">
+          <div className="admin-appt-list-wrap">
+            <div className="admin-appt-list">
+              <div className="admin-appt-header">
+                <span>Horário</span>
+                <span>Cliente</span>
+                <span>Serviço</span>
+                <span style={{textAlign:'right'}}>Pagamento</span>
+                <span>WhatsApp</span>
+                <span style={{textAlign:'center'}}>Status</span>
+                <span style={{textAlign:'right'}}>Ações</span>
+              </div>
+
             {filteredAppointments.map(a => {
               const isToday = a.date === todayStr;
               const bPhone = getBarberPhoneForAppt(a);
               const estPhone = establishmentWA.phone;
+              const payMethodLabel = a.payment_method === 'Pagamento Aprovado' ? 'Aprovado' : (a.payment_method || 'Cartão');
 
               return (
                 <div key={a.id} className={`admin-appt-card ${isToday ? 'is-today' : ''}`}>
@@ -3142,11 +3164,11 @@ function AdminAppointments({ user, onGoToOrders }) {
                   {/* Payment Details */}
                   <div className="aac-payment-col">
                     <strong className="aac-price">R$ {parseFloat(a.price || 0).toFixed(2)}</strong>
-                    <div style={{display:'flex', gap:6, marginTop:4}}>
+                    <div className="aac-payment-meta">
                       <span className={`appt-badge ${a.payment_status === 'Pago' ? 'paid' : ''}`}>
                         {a.payment_status === 'Pago' ? '✓ PAGO' : 'Pendente'}
                       </span>
-                      <span className="payment-method-tag">{a.payment_method || 'Cartão'}</span>
+                      <span className="payment-method-tag" title={a.payment_method}>{payMethodLabel}</span>
                     </div>
                   </div>
 
@@ -3210,7 +3232,6 @@ function AdminAppointments({ user, onGoToOrders }) {
                     {a.status === 'Confirmado' && (
                       <button
                         className="gold-button compact"
-                        style={{padding:'6px 12px', fontSize:11}}
                         onClick={() => updateAppointmentStatus(a.id, 'Concluído')}
                         title="Marcar como atendido"
                       >
@@ -3220,7 +3241,6 @@ function AdminAppointments({ user, onGoToOrders }) {
                     {a.status !== 'Cancelado' && a.status !== 'Concluído' && (
                       <button
                         className="outline-button compact danger-outline"
-                        style={{padding:'6px 10px', fontSize:11}}
                         onClick={() => {
                           if (window.confirm('Deseja realmente cancelar este agendamento?')) {
                             updateAppointmentStatus(a.id, 'Cancelado');
@@ -3232,7 +3252,6 @@ function AdminAppointments({ user, onGoToOrders }) {
                     )}
                     <button
                       className="outline-button compact"
-                      style={{padding:'6px 10px', fontSize:11}}
                       onClick={() => setSelectedReceipt(a)}
                       title="Ver Comprovante de Pagamento"
                     >
@@ -3242,6 +3261,7 @@ function AdminAppointments({ user, onGoToOrders }) {
                 </div>
               );
             })}
+            </div>
           </div>
         )}
       </div>
@@ -3590,61 +3610,70 @@ function ClientOrders({ user, onGoToShop }) {
           </button>
         </div>
       ) : (
-        <div className="admin-appt-list" style={{marginTop:20}}>
-          {orders.map(o => {
-            const dateStr = o.created_at ? new Date(o.created_at).toLocaleDateString('pt-BR') : 'Data recente';
-            return (
-              <div key={o.id} className="admin-appt-card order-card">
-                <div className="aac-date-col">
-                  <span className="today-badge" style={{background:'#222', color:'var(--gold)', border:'1px solid var(--gold-soft)'}}>PEDIDO</span>
-                  <strong className="aac-time" style={{fontSize:13}}>#{o.id}</strong>
-                  <span className="aac-date">{dateStr}</span>
-                </div>
+        <div className="admin-appt-list-wrap" style={{marginTop:20}}>
+          <div className="admin-appt-list">
+            <div className="client-order-header">
+              <span>Pedido</span>
+              <span>Itens & Detalhes</span>
+              <span style={{textAlign:'right'}}>Total</span>
+              <span style={{textAlign:'center'}}>Status</span>
+              <span style={{textAlign:'right'}}>Ações</span>
+            </div>
+            {orders.map(o => {
+              const dateStr = o.created_at ? new Date(o.created_at).toLocaleDateString('pt-BR') : 'Data recente';
+              const payMethodLabel = o.payment_method === 'Pagamento Aprovado' ? 'Aprovado' : (o.payment_method || 'Cartão');
+              return (
+                <div key={o.id} className="client-order-card">
+                  <div className="aac-date-col">
+                    <span className="today-badge" style={{background:'#222', color:'var(--gold)', border:'1px solid var(--gold-soft)'}}>PEDIDO</span>
+                    <strong className="aac-time" style={{fontSize:13}}>#{o.id}</strong>
+                    <span className="aac-date">{dateStr}</span>
+                  </div>
 
-                <div className="aac-service-col" style={{flex:1.5}}>
-                  <strong style={{color:'var(--gold)'}}>
-                    {(o.items || []).map(i => `${i.quantity || 1}x ${i.name}`).join(', ')}
-                  </strong>
-                  <span style={{fontSize:11, color:'#aaa', marginTop:3}}>
-                    {o.delivery_type === 'delivery' ? `🛵 Entrega: ${o.delivery_address}` : `🏪 Retirada no Atelier Barber`}
-                  </span>
-                </div>
+                  <div className="aac-service-col">
+                    <strong style={{color:'var(--gold)'}}>
+                      {(o.items || []).map(i => `${i.quantity || 1}x ${i.name}`).join(', ')}
+                    </strong>
+                    <span style={{fontSize:11, color:'#aaa', marginTop:3}}>
+                      {o.delivery_type === 'delivery' ? `🛵 Entrega: ${o.delivery_address}` : `🏪 Retirada no Atelier Barber`}
+                    </span>
+                  </div>
 
-                <div className="aac-payment-col">
-                  <strong className="aac-price">R$ {parseFloat(o.total_price || 0).toFixed(2)}</strong>
-                  <div style={{display:'flex', gap:6, marginTop:4}}>
-                    <span className="appt-badge paid">✓ PAGO</span>
-                    <span className="payment-method-tag">{o.payment_method || 'Cartão'}</span>
+                  <div className="aac-payment-col">
+                    <strong className="aac-price">R$ {parseFloat(o.total_price || 0).toFixed(2)}</strong>
+                    <div className="aac-payment-meta">
+                      <span className="appt-badge paid">✓ PAGO</span>
+                      <span className="payment-method-tag" title={o.payment_method}>{payMethodLabel}</span>
+                    </div>
+                  </div>
+
+                  <div className="aac-status-col">
+                    <span className="appt-badge confirmed">{o.status || 'Confirmado'}</span>
+                  </div>
+
+                  <div className="aac-actions-col">
+                    {estWA.phone && (
+                      <a
+                        href={getWhatsAppUrlForOrder(o, estWA.phone, estWA.name)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="wa-btn-chip establishment"
+                        title="Enviar pedido para o WhatsApp da Barbearia"
+                      >
+                        <MessageCircle size={12}/> Avisar Loja
+                      </a>
+                    )}
+                    <button
+                      className="outline-button compact"
+                      onClick={() => setSelectedReceipt(o)}
+                    >
+                      Ver Recibo
+                    </button>
                   </div>
                 </div>
-
-                <div className="aac-status-col">
-                  <span className="appt-badge confirmed">{o.status || 'Confirmado'}</span>
-                </div>
-
-                <div className="aac-actions-col">
-                  {estWA.phone && (
-                    <a
-                      href={getWhatsAppUrlForOrder(o, estWA.phone, estWA.name)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="wa-btn-chip establishment"
-                      title="Enviar pedido para o WhatsApp da Barbearia"
-                    >
-                      <MessageCircle size={12}/> Avisar Loja
-                    </a>
-                  )}
-                  <button
-                    className="outline-button compact"
-                    style={{padding:'6px 12px', fontSize:11}}
-                    onClick={() => setSelectedReceipt(o)}
-                  >
-                    Ver Recibo
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
 
