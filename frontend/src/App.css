@@ -556,29 +556,229 @@
   gap: 6px;
 }
 
+.selected-time-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #181818;
+  border: 1px solid var(--line);
+  min-height: 42px;
+}
+.selected-time-display .std-time {
+  color: var(--gold);
+  font-weight: 700;
+  font-size: 14px;
+}
+.selected-time-display .std-range {
+  font-size: 11px;
+  color: #888;
+  margin-left: auto;
+  background: #222;
+  padding: 2px 7px;
+  border-radius: 2px;
+}
+
+.schedule-meta-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #181818;
+  border: 1px solid rgba(200, 169, 110, 0.2);
+  padding: 10px 14px;
+  margin-top: 12px;
+  font-size: 12px;
+  gap: 10px;
+}
+.smb-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.smb-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #777;
+}
+.smb-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--line);
+}
+
+.schedule-legend {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 14px 0 8px;
+  padding: 0 2px;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.legend-dot.available { background: #51c18a; }
+.legend-dot.selected { background: var(--gold); }
+.legend-dot.busy { background: #555; }
+
 .time-slots-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  margin-top: 10px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  margin-top: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .time-slot-btn {
-  background: #1e1e1e;
+  background: #1c1c1c;
   border: 1px solid var(--line);
-  color: #ccc;
-  padding: 8px 4px;
+  color: #ddd;
+  padding: 8px 4px 6px;
   font-size: 12px;
   cursor: pointer;
   text-align: center;
-  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  border-radius: 2px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.time-slot-btn:hover { border-color: var(--gold-soft); color: #fff; }
+.time-slot-btn .ts-time {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+.time-slot-btn .ts-tag {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  padding: 1px 4px;
+  border-radius: 2px;
+  line-height: 1.1;
+}
+.time-slot-btn .ts-tag.free {
+  color: #51c18a;
+  background: rgba(81, 193, 138, 0.1);
+}
+.time-slot-btn .ts-tag.selected {
+  color: #000;
+  background: rgba(0, 0, 0, 0.15);
+  font-weight: 700;
+}
+.time-slot-btn .ts-tag.busy {
+  color: #666;
+  background: #141414;
+}
+
+.time-slot-btn:hover:not(:disabled) {
+  border-color: var(--gold);
+  background: #232323;
+  color: #fff;
+  transform: translateY(-1px);
+}
 .time-slot-btn.active {
   background: var(--gold);
   border-color: var(--gold);
   color: #000;
   font-weight: 700;
+  box-shadow: 0 2px 10px rgba(200, 169, 110, 0.35);
+}
+.time-slot-btn.busy,
+.time-slot-btn:disabled {
+  background: #141414;
+  border-color: #222;
+  color: #555;
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.8);
+}
+.time-slot-btn.busy .ts-time {
+  text-decoration: line-through;
+  color: #555;
+}
+
+.schedule-alert-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(224, 108, 117, 0.1);
+  border: 1px solid rgba(224, 108, 117, 0.4);
+  color: #e06c75;
+  padding: 10px 12px;
+  font-size: 12px;
+  margin-top: 12px;
+  border-radius: 2px;
+}
+
+/* Admin Service Duration Picker */
+.admin-duration-picker {
+  background: #171717;
+  border: 1px solid var(--line);
+  padding: 12px 14px;
+  margin-top: 12px;
+  border-radius: 2px;
+}
+.adp-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--gold);
+  margin-bottom: 8px;
+}
+.duration-presets-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.duration-pill {
+  background: #202020;
+  border: 1px solid var(--line);
+  color: #ccc;
+  padding: 5px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  border-radius: 2px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+.duration-pill:hover {
+  border-color: var(--gold);
+  color: #fff;
+}
+.duration-pill.active {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #000;
+  font-weight: 700;
+  box-shadow: 0 0 8px rgba(200, 169, 110, 0.4);
+}
+.adp-impact-note {
+  font-size: 12px;
+  color: #bbb;
+  line-height: 1.5;
+  padding-top: 8px;
+  border-top: 1px solid #222;
+}
+.adp-impact-note strong {
+  color: var(--gold);
 }
 
 /* PIX Box */

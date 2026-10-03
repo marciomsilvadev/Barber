@@ -46,6 +46,9 @@ function formatWhatsAppBarberMessage(appt) {
   const barberName = appt.barber_name || 'Profissional';
   const dateFormatted = appt.date ? appt.date.split('-').reverse().join('/') : 'Data a definir';
   const timeFormatted = appt.time || '10:00';
+  const durationMin = parseInt(appt.duration_minutes, 10) || 30;
+  const endTime = calculateEndTime(timeFormatted, durationMin);
+  const durLabel = formatDuration(durationMin);
   const priceFormatted = parseFloat(appt.price || 0).toFixed(2);
   const paymentMethod = appt.payment_method || 'Pago';
   const code = (appt.id ? String(appt.id).slice(0, 8) : String(Date.now()).slice(-6)).toUpperCase();
@@ -56,7 +59,8 @@ function formatWhatsAppBarberMessage(appt) {
     `🔖 *Código da Reserva:* #${code}\n` +
     `👤 *Cliente:* ${clientName}${clientEmail}\n` +
     `✂️ *Serviço:* ${serviceName}\n` +
-    `📅 *Data e Horário:* ${dateFormatted} às ${timeFormatted}\n` +
+    `⏱️ *Duração Prevista:* ${durLabel}\n` +
+    `📅 *Data e Horário:* ${dateFormatted} das ${timeFormatted} às ${endTime}\n` +
     `💰 *Valor do Serviço:* R$ ${priceFormatted} (${paymentMethod})\n` +
     `✅ *Status:* Pagamento Confirmado & Vaga Garantida\n\n` +
     `_Atelier Barber System_`
@@ -70,6 +74,9 @@ function formatWhatsAppEstablishmentMessage(appt, establishmentName = 'Atelier B
   const barberName = appt.barber_name || 'Profissional Atelier';
   const dateFormatted = appt.date ? appt.date.split('-').reverse().join('/') : 'Data a definir';
   const timeFormatted = appt.time || '10:00';
+  const durationMin = parseInt(appt.duration_minutes, 10) || 30;
+  const endTime = calculateEndTime(timeFormatted, durationMin);
+  const durLabel = formatDuration(durationMin);
   const priceFormatted = parseFloat(appt.price || 0).toFixed(2);
   const paymentMethod = appt.payment_method || 'Pago';
   const code = (appt.id ? String(appt.id).slice(0, 8) : String(Date.now()).slice(-6)).toUpperCase();
@@ -80,8 +87,8 @@ function formatWhatsAppEstablishmentMessage(appt, establishmentName = 'Atelier B
     `🔖 *Reserva:* #${code}\n` +
     `💈 *Profissional:* ${barberName}\n` +
     `👤 *Cliente:* ${clientName}${clientEmail}\n` +
-    `✂️ *Serviço:* ${serviceName}\n` +
-    `📅 *Data e Horário:* ${dateFormatted} às ${timeFormatted}\n` +
+    `✂️ *Serviço:* ${serviceName} (${durLabel})\n` +
+    `📅 *Data e Horário:* ${dateFormatted} das ${timeFormatted} às ${endTime}\n` +
     `💰 *Receita Confirmada:* R$ ${priceFormatted} (${paymentMethod})\n` +
     `✅ *Status Financeiro:* Pago\n\n` +
     `_Gestão Atelier Barber_`
@@ -94,6 +101,9 @@ function formatWhatsAppClientMessage(appt) {
   const barberName = appt.barber_name || 'Profissional Atelier';
   const dateFormatted = appt.date ? appt.date.split('-').reverse().join('/') : 'Data a definir';
   const timeFormatted = appt.time || '10:00';
+  const durationMin = parseInt(appt.duration_minutes, 10) || 30;
+  const endTime = calculateEndTime(timeFormatted, durationMin);
+  const durLabel = formatDuration(durationMin);
   const priceFormatted = parseFloat(appt.price || 0).toFixed(2);
   const code = (appt.id ? String(appt.id).slice(0, 8) : String(Date.now()).slice(-6)).toUpperCase();
 
@@ -101,9 +111,9 @@ function formatWhatsAppClientMessage(appt) {
     `💈 *ATELIER BARBER · COMPROVANTE DE AGENDAMENTO*\n\n` +
     `Olá, *${clientName}*! Seu horário foi agendado com sucesso:\n\n` +
     `🔖 *Código:* #${code}\n` +
-    `✂️ *Serviço:* ${serviceName}\n` +
+    `✂️ *Serviço:* ${serviceName} (${durLabel})\n` +
     `💈 *Profissional:* ${barberName}\n` +
-    `📅 *Data e Hora:* ${dateFormatted} às ${timeFormatted}\n` +
+    `📅 *Data e Hora:* ${dateFormatted} das ${timeFormatted} às ${endTime}\n` +
     `💰 *Total Pago:* R$ ${priceFormatted}\n\n` +
     `Aguardamos você no Atelier Barber! Qualquer dúvida, estamos à disposição.`
   );
@@ -133,6 +143,196 @@ function formatWhatsAppMessage(appt) {
 }
 function getWhatsAppUrl(appt, rawPhone) {
   return getWhatsAppUrlForBarber(appt, rawPhone);
+}
+
+// ── Scheduling & Time Interval Utilities (Anti-Double-Booking Engine) ───────────
+// Operating hours: 08:00 to 20:00 in 30-minute intervals. Salon closes at 20:30 (1230 minutes).
+const SALON_CLOSING_MINUTES = 20 * 60 + 30; // 20:30 (1230 minutes)
+
+const ALL_TIME_SLOTS = [
+  '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
+  '11:00', '11:30', '12:00', '12:30', '13:00', '13:30',
+  '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
+  '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00'
+];
+
+const DURATION_PRESETS = [
+  { label: '30 min', value: 30, hint: 'Corte tradicional' },
+  { label: '45 min', value: 45, hint: 'Corte & Barba' },
+  { label: '1h', value: 60, hint: 'Completo / Barboterapia' },
+  { label: '1h 30m', value: 90, hint: 'Tratamento & Barba' },
+  { label: '2h', value: 120, hint: 'Tratamento capilar' },
+  { label: '3h', value: 180, hint: 'Coloração / Mechas' },
+  { label: '4h', value: 240, hint: 'Alisamento capilar' },
+  { label: '6h', value: 360, hint: 'Escova progressiva' },
+];
+
+function timeToMinutes(str) {
+  if (!str || typeof str !== 'string') return 0;
+  const parts = str.split(':');
+  const h = parseInt(parts[0], 10) || 0;
+  const m = parseInt(parts[1], 10) || 0;
+  return h * 60 + m;
+}
+
+function minutesToTime(mins) {
+  const normalized = Math.max(0, Math.floor(mins));
+  const h = Math.floor(normalized / 60);
+  const m = normalized % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function calculateEndTime(startTime, durationMinutes) {
+  if (!startTime) return '';
+  const startMins = timeToMinutes(startTime);
+  const dur = parseInt(durationMinutes, 10) || 30;
+  return minutesToTime(startMins + dur);
+}
+
+function formatDuration(minutes) {
+  const mins = parseInt(minutes, 10) || 30;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  if (h === 0) return `${m} min`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
+
+function checkSlotAvailability({
+  slot,
+  date,
+  duration,
+  barber,
+  barbers = [],
+  existingAppointments = [],
+  services = [],
+}) {
+  if (!slot || !date) {
+    return { available: false, reason: 'Data ou horário inválido.' };
+  }
+
+  const slotStart = timeToMinutes(slot);
+  const dur = parseInt(duration, 10) || 30;
+  const slotEnd = slotStart + dur;
+
+  // 1. Salon closing check (closing at 20:30)
+  if (slotEnd > SALON_CLOSING_MINUTES) {
+    return {
+      available: false,
+      reason: `Procedimento de ${formatDuration(dur)} ultrapassa o encerramento do salão (20:30). Término seria ${minutesToTime(slotEnd)}.`,
+    };
+  }
+
+  // 2. Check if slot has already passed today
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  if (date === todayStr) {
+    const currentMins = now.getHours() * 60 + now.getMinutes();
+    if (slotStart <= currentMins) {
+      return { available: false, reason: 'Este horário já passou hoje.' };
+    }
+  }
+
+  // Helper to extract appointment duration
+  const getDuration = (appt) => {
+    if (appt.duration_minutes && parseInt(appt.duration_minutes, 10) > 0) {
+      return parseInt(appt.duration_minutes, 10);
+    }
+    if (services && services.length > 0) {
+      const match = services.find(s =>
+        (appt.service_id && s.id === appt.service_id) ||
+        (appt.service_type && s.name && s.name.toLowerCase() === appt.service_type.toLowerCase()) ||
+        (appt.service_name && s.name && s.name.toLowerCase() === appt.service_name.toLowerCase())
+      );
+      if (match && match.duration_minutes) return parseInt(match.duration_minutes, 10);
+    }
+    return 30;
+  };
+
+  const intervalsOverlap = (startA, endA, startB, endB) => {
+    return startA < endB && startB < endA;
+  };
+
+  // Active appointments for specified date
+  const activeAppts = existingAppointments.filter(a => {
+    if (!a || a.status === 'Cancelado') return false;
+    return a.date === date;
+  });
+
+  // Check if a specific barber is busy during [slotStart, slotEnd)
+  const isBarberBusy = (bObj) => {
+    if (!bObj) return false;
+    const bId = bObj.id ? String(bObj.id) : null;
+    const bName = bObj.name ? bObj.name.trim().toLowerCase() : '';
+
+    return activeAppts.some(a => {
+      const aBarberId = a.barber_id ? String(a.barber_id) : null;
+      const aBarberName = a.barber_name ? a.barber_name.trim().toLowerCase() : '';
+
+      const matchBarber = (bId && aBarberId && bId === aBarberId) ||
+                          (bName && aBarberName && (bName === aBarberName || aBarberName.includes(bName) || bName.includes(aBarberName)));
+
+      if (!matchBarber) return false;
+
+      const aStart = timeToMinutes(a.time);
+      const aDur = getDuration(a);
+      const aEnd = aStart + aDur;
+
+      return intervalsOverlap(slotStart, slotEnd, aStart, aEnd);
+    });
+  };
+
+  // Case A: Specific Barber Selected
+  if (barber) {
+    const busy = isBarberBusy(barber);
+    if (busy) {
+      const conflict = activeAppts.find(a => {
+        const aBarberId = a.barber_id ? String(a.barber_id) : null;
+        const aBarberName = a.barber_name ? a.barber_name.trim().toLowerCase() : '';
+        const bId = barber.id ? String(barber.id) : null;
+        const bName = barber.name ? barber.name.trim().toLowerCase() : '';
+        const match = (bId && aBarberId && bId === aBarberId) || (bName && aBarberName && (bName === aBarberName || aBarberName.includes(bName)));
+        if (!match) return false;
+        const aStart = timeToMinutes(a.time);
+        const aEnd = aStart + getDuration(a);
+        return intervalsOverlap(slotStart, slotEnd, aStart, aEnd);
+      });
+
+      const conflictEndTime = conflict ? calculateEndTime(conflict.time, getDuration(conflict)) : '';
+      const conflictDetail = conflict ? ` (${conflict.time} às ${conflictEndTime})` : '';
+
+      return {
+        available: false,
+        reason: `${barber.name} já possui agendamento neste horário${conflictDetail}.`,
+      };
+    }
+    return { available: true, freeBarbers: [barber] };
+  }
+
+  // Case B: "Qualquer" Barber Selected (barber === null)
+  if (barbers && barbers.length > 0) {
+    const freeBarbers = barbers.filter(b => !isBarberBusy(b));
+    if (freeBarbers.length === 0) {
+      return {
+        available: false,
+        reason: 'Todos os profissionais estão ocupados neste período.',
+      };
+    }
+    return { available: true, freeBarbers };
+  }
+
+  // Fallback: general overlap check against active appointments
+  const generalConflict = activeAppts.some(a => {
+    const aStart = timeToMinutes(a.time);
+    const aEnd = aStart + getDuration(a);
+    return intervalsOverlap(slotStart, slotEnd, aStart, aEnd);
+  });
+
+  if (generalConflict) {
+    return { available: false, reason: 'Horário já ocupado por outro cliente.' };
+  }
+
+  return { available: true, freeBarbers: [] };
 }
 
 // -----------------------------------------------------------------------------
@@ -1893,7 +2093,7 @@ function AdminServices({ user }) {
           {displayedServices.map(s => (
             <div key={s.id} className="service-row">
               <div className="service-icon-box"><Scissors size={16}/></div>
-              <div className="service-info"><strong>{s.name}</strong><span>{s.category} · {s.duration_minutes} min</span></div>
+              <div className="service-info"><strong>{s.name}</strong><span>{s.category} · {formatDuration(s.duration_minutes || 30)}</span></div>
               <div className="service-price">R$ {parseFloat(s.price).toFixed(2)}</div>
               <div style={{display:'flex', gap:6}}>
                 <button className="icon-button" onClick={() => openModal(s)}><Edit2 size={14}/></button>
@@ -1910,8 +2110,36 @@ function AdminServices({ user }) {
             <label>Nome do serviço<input placeholder="Ex: Corte Clássico" value={form.name} onChange={e => setForm({...form, name: autoCap(e.target.value)})}/></label>
             <label>Descrição <span className="label-hint">(opcional)</span><input placeholder="Corte com tesoura e alinhamento de barba" value={form.description} onChange={e => setForm({...form, description: autoCap(e.target.value)})}/></label>
             <div className="form-row">
-              <label>Preço (R$)<input type="number" placeholder="80" value={form.price} onChange={e => setForm({...form, price: e.target.value})}/></label>
-              <label>Duração (min)<input type="number" placeholder="45" value={form.duration_minutes} onChange={e => setForm({...form, duration_minutes: e.target.value})}/></label>
+              <label>Preço (R$)<input type="number" step="0.50" placeholder="80" value={form.price} onChange={e => setForm({...form, price: e.target.value})}/></label>
+              <label>Duração (min)<input type="number" min="15" step="15" placeholder="45" value={form.duration_minutes} onChange={e => setForm({...form, duration_minutes: e.target.value})}/></label>
+            </div>
+
+            {/* Duração Média e Impacto na Agenda */}
+            <div className="admin-duration-picker">
+              <div className="adp-label">
+                <Clock size={13} color="var(--gold)"/>
+                <span>Tempo médio do procedimento (atalhos rápidos):</span>
+              </div>
+              <div className="duration-presets-row">
+                {DURATION_PRESETS.map(p => {
+                  const active = parseInt(form.duration_minutes, 10) === p.value;
+                  return (
+                    <button
+                      key={p.value}
+                      type="button"
+                      className={`duration-pill ${active ? 'active' : ''}`}
+                      onClick={() => setForm({...form, duration_minutes: String(p.value)})}
+                      title={p.hint}
+                    >
+                      {p.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="adp-impact-note">
+                ⏱️ Duração configurada: <strong>{formatDuration(form.duration_minutes || 30)}</strong> ({form.duration_minutes || 30} min)
+                <span> · Bloqueia <strong>{Math.ceil((parseInt(form.duration_minutes, 10) || 30) / 30)} horário{Math.ceil((parseInt(form.duration_minutes, 10) || 30) / 30) > 1 ? 's' : ''}</strong> consecutivos de 30 min na agenda do profissional.</span>
+              </div>
             </div>
             
             <label>Categoria
@@ -3145,9 +3373,15 @@ function AdminAppointments({ user, onGoToOrders }) {
                   {/* Date & Time Column */}
                   <div className="aac-date-col">
                     {isToday && <span className="today-badge">HOJE</span>}
-                    <strong className="aac-time">{a.time || '10:00'}</strong>
+                    <strong className="aac-time">
+                      {a.time || '10:00'}
+                      {a.duration_minutes ? (
+                        <span className="aac-time-end" style={{fontSize:11, color:'var(--gold)', fontWeight:500}}> às {calculateEndTime(a.time || '10:00', a.duration_minutes)}</span>
+                      ) : null}
+                    </strong>
                     <span className="aac-date">
                       {a.date ? a.date.split('-').reverse().join('/') : 'Data a definir'}
+                      {a.duration_minutes ? ` · ${formatDuration(a.duration_minutes)}` : ''}
                     </span>
                   </div>
 
@@ -3163,7 +3397,7 @@ function AdminAppointments({ user, onGoToOrders }) {
                   {/* Service & Barber */}
                   <div className="aac-service-col">
                     <strong>{a.service_type || a.service_name || 'Serviço'}</strong>
-                    <span>Com {a.barber_name || 'Profissional Atelier'}</span>
+                    <span>Com {a.barber_name || 'Profissional Atelier'}{a.duration_minutes ? ` (${formatDuration(a.duration_minutes)})` : ''}</span>
                     {bPhone && <span className="aac-barber-wa-info"><MessageCircle size={10} color="#25D366"/> {bPhone}</span>}
                   </div>
 
@@ -3903,7 +4137,10 @@ function ClientAppointments({ user, onGoToServices }) {
                 </div>
                 <div className="appt-meta-row">
                   <Clock size={14} color="var(--gold)"/>
-                  <span>{a.time || '10:00'}</span>
+                  <span>
+                    {a.time || '10:00'}
+                    {a.duration_minutes ? ` às ${calculateEndTime(a.time || '10:00', a.duration_minutes)} (${formatDuration(a.duration_minutes)})` : ''}
+                  </span>
                 </div>
               </div>
 
@@ -3945,8 +4182,9 @@ function PaymentModal({
   onClose,
   user,
   selected,
+  services = [],
   barber,
-  barbers,
+  barbers = [],
   payMode,
   parcelas,
   onSuccessAppointment,
@@ -3963,11 +4201,13 @@ function PaymentModal({
   const [cardCvv, setCardCvv] = useState('');
   const [saveCardCheck, setSaveCardCheck] = useState(true);
 
-  // Schedule State
+  // Schedule State & Real-time Anti-Double-Booking Protection
   const defaultDate = new Date();
   defaultDate.setDate(defaultDate.getDate() + 1);
   const [bookingDate, setBookingDate] = useState(defaultDate.toISOString().split('T')[0]);
   const [bookingTime, setBookingTime] = useState('10:00');
+  const [existingAppointments, setExistingAppointments] = useState([]);
+  const [loadingSchedule, setLoadingSchedule] = useState(false);
 
   // Flow State
   const [processing, setProcessing] = useState(false);
@@ -3975,6 +4215,47 @@ function PaymentModal({
   const [confirmedAppt, setConfirmedAppt] = useState(null);
   const [pixCopied, setPixCopied] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  // Load existing appointments for the selected date to prevent double-booking
+  const loadExistingAppointments = useCallback(async () => {
+    if (!bookingDate) return;
+    setLoadingSchedule(true);
+    try {
+      let dbList = [];
+      try {
+        const { data, error } = await supabase
+          .from('appointments')
+          .select('*')
+          .eq('date', bookingDate)
+          .neq('status', 'Cancelado');
+        if (!error && data) dbList = data;
+      } catch (e) {
+        console.warn('Notice loading appointments from Supabase:', e);
+      }
+
+      let localList = [];
+      try {
+        const stored = JSON.parse(localStorage.getItem('barber_all_appointments') || '[]');
+        localList = stored.filter(a => a.date === bookingDate && a.status !== 'Cancelado');
+      } catch {}
+
+      const dedup = new Map();
+      [...dbList, ...localList].forEach(item => {
+        if (item && item.id) dedup.set(String(item.id), item);
+      });
+      setExistingAppointments(Array.from(dedup.values()));
+    } catch (err) {
+      console.warn('Error loading schedule:', err);
+    } finally {
+      setLoadingSchedule(false);
+    }
+  }, [bookingDate]);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadExistingAppointments();
+    }
+  }, [isOpen, bookingDate, loadExistingAppointments]);
 
   // Load saved cards from localStorage
   useEffect(() => {
@@ -3991,10 +4272,43 @@ function PaymentModal({
     }
   }, [user?.id, isOpen]);
 
+  // Auto-switch bookingTime to first free slot if currently selected slot is busy
+  useEffect(() => {
+    if (!isOpen || !selected || !bookingDate) return;
+    const dur = parseInt(selected.duration_minutes, 10) || 30;
+
+    const currentCheck = checkSlotAvailability({
+      slot: bookingTime,
+      date: bookingDate,
+      duration: dur,
+      barber,
+      barbers,
+      existingAppointments,
+      services,
+    });
+
+    if (!currentCheck.available) {
+      const firstFree = ALL_TIME_SLOTS.find(t => checkSlotAvailability({
+        slot: t,
+        date: bookingDate,
+        duration: dur,
+        barber,
+        barbers,
+        existingAppointments,
+        services,
+      }).available);
+
+      if (firstFree) {
+        setBookingTime(firstFree);
+      }
+    }
+  }, [isOpen, bookingDate, barber, barbers, existingAppointments, selected, services, bookingTime]);
+
   if (!isOpen || !selected) return null;
 
   const total = parseFloat(selected.price || 0);
   const parcelValue = total / parcelas;
+  const serviceDuration = parseInt(selected.duration_minutes, 10) || 30;
 
   // Format Card Number (XXXX XXXX XXXX XXXX)
   function handleCardNumberChange(e) {
@@ -4038,6 +4352,27 @@ function PaymentModal({
   async function handleConfirmPayment(e) {
     e?.preventDefault();
     setErrorMsg('');
+
+    // 1. Double-booking pre-flight validation
+    const slotCheck = checkSlotAvailability({
+      slot: bookingTime,
+      date: bookingDate,
+      duration: serviceDuration,
+      barber,
+      barbers,
+      existingAppointments,
+      services,
+    });
+
+    if (!slotCheck.available) {
+      setErrorMsg(`Horário indisponível: ${slotCheck.reason || 'Conflito de agenda com o profissional selecionado.'}`);
+      return;
+    }
+
+    // Determine assigned barber
+    const assignedBarber = barber ||
+      (slotCheck.freeBarbers && slotCheck.freeBarbers.length > 0 ? slotCheck.freeBarbers[0] : null) ||
+      (barbers && barbers.length > 0 ? barbers[0] : null);
 
     if (payMode === 'card') {
       if (!useSavedCard) {
@@ -4083,37 +4418,51 @@ function PaymentModal({
       }
 
       // 3. Salva o agendamento no Supabase
-      const barberSelected = barber || (barbers && barbers.length > 0 ? barbers[0] : null);
       const apptRecord = {
         tenant_id: selected.tenant_id || user.tenant_id || '77dab26d-b0de-49e0-995f-6dc1c9c4fbe8',
         client_id: user.id,
-        barber_id: barberSelected?.id || null,
+        barber_id: assignedBarber?.id || null,
         service_id: selected.id,
         service_type: selected.name,
         price: total,
         date: bookingDate,
         time: bookingTime,
+        duration_minutes: serviceDuration,
         status: 'Confirmado',
         payment_status: 'Pago',
       };
 
-      const { data: inserted, error: dbErr } = await supabase
+      let inserted = null;
+      let { data: insData, error: dbErr } = await supabase
         .from('appointments')
         .insert(apptRecord)
         .select()
         .single();
 
       if (dbErr) {
-        console.warn('DB insert notice:', dbErr.message);
+        console.warn('DB insert primary attempt notice:', dbErr.message);
+        // Schema fallback: if duration_minutes column does not exist on legacy DB, retry without it
+        const { duration_minutes, ...cleanRecord } = apptRecord;
+        const retry = await supabase
+          .from('appointments')
+          .insert(cleanRecord)
+          .select()
+          .single();
+        inserted = retry.data;
+      } else {
+        inserted = insData;
       }
 
+      const calculatedEnd = calculateEndTime(bookingTime, serviceDuration);
       const enrichedAppt = {
         ...apptRecord,
         id: inserted?.id || String(Date.now()),
         client_name: user.full_name || user.email?.split('@')[0] || 'Cliente Atelier',
         client_email: user.email || '',
-        barber_name: barberSelected?.name || 'Profissional Atelier',
+        barber_name: assignedBarber?.name || 'Profissional Atelier',
         service_name: selected.name,
+        duration_minutes: serviceDuration,
+        end_time: calculatedEnd,
         payment_method: payMode === 'card' ? `Cartão (${parcelas}x)` : 'PIX Instantâneo',
         created_at: new Date().toISOString(),
       };
@@ -4127,17 +4476,18 @@ function PaymentModal({
         console.warn('Local appointment sync notice:', e);
       }
 
+      // Update local appointments list immediately so slot is marked occupied without reload
+      setExistingAppointments(prev => [...prev, enrichedAppt]);
       setConfirmedAppt(enrichedAppt);
       setIsSuccess(true);
       if (onSuccessAppointment) onSuccessAppointment(inserted || enrichedAppt);
     } catch (err) {
-      setErrorMsg('Falha ao processar pagamento. Tente novamente.');
+      console.error('Payment processing error:', err);
+      setErrorMsg('Falha ao processar pagamento e agendamento. Tente novamente.');
     } finally {
       setProcessing(false);
     }
   }
-
-  const timeSlots = ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'];
 
   return (
     <div className="payment-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget && !processing) onClose(); }}>
@@ -4166,15 +4516,15 @@ function PaymentModal({
               <div className="success-receipt">
                 <div className="receipt-row">
                   <span>Serviço:</span>
-                  <strong>{selected.name} ({selected.duration_minutes} min)</strong>
+                  <strong>{selected.name} ({formatDuration(serviceDuration)})</strong>
                 </div>
                 <div className="receipt-row">
                   <span>Profissional:</span>
                   <strong>{confirmedAppt?.barber_name || 'Profissional Atelier'}</strong>
                 </div>
                 <div className="receipt-row">
-                  <span>Data e Hora:</span>
-                  <strong>{bookingDate.split('-').reverse().join('/')} às {bookingTime}</strong>
+                  <span>Data e Horário:</span>
+                  <strong>{bookingDate.split('-').reverse().join('/')} das {bookingTime} às {calculateEndTime(bookingTime, serviceDuration)}</strong>
                 </div>
                 <div className="receipt-row">
                   <span>Forma de Pagamento:</span>
@@ -4278,7 +4628,7 @@ function PaymentModal({
               <div className="checkout-summary-banner">
                 <div className="csb-left">
                   <strong>{selected.name}</strong>
-                  <span>{barber ? `com ${barber.name}` : 'Profissional a definir'} · {selected.duration_minutes} min</span>
+                  <span>{barber ? `com ${barber.name}` : 'Profissional a definir'} · {formatDuration(serviceDuration)}</span>
                 </div>
                 <div className="csb-right">
                   <strong>R$ {total.toFixed(2)}</strong>
@@ -4286,14 +4636,15 @@ function PaymentModal({
                 </div>
               </div>
 
-              {/* Date and Time Selector */}
+              {/* Date and Time Selector with Anti-Double-Booking Protection */}
               <div className="booking-schedule-section">
                 <div className="schedule-header">
-                  <Calendar size={14}/> ESCOLHA A DATA E HORÁRIO DA VISITA
+                  <Calendar size={14}/> ESCOLHA A DATA E HORÁRIO DO ATENDIMENTO
                 </div>
+
                 <div className="pfield-row">
-                  <div className="pfield-label">
-                    <span>Data</span>
+                  <div className="pfield-label" style={{flex: 1.2}}>
+                    <span>Data do Atendimento</span>
                     <input
                       type="date"
                       className="pfield-input"
@@ -4302,26 +4653,103 @@ function PaymentModal({
                       onChange={e => setBookingDate(e.target.value)}
                     />
                   </div>
-                  <div className="pfield-label">
-                    <span>Horário selecionado</span>
-                    <div style={{padding:'12px 14px', background:'#181818', border:'1px solid var(--line)', color:'var(--gold)', fontWeight:700, fontSize:13}}>
-                      {bookingTime}
+                  <div className="pfield-label" style={{flex: 1}}>
+                    <span>Horário Selecionado</span>
+                    <div className="selected-time-display">
+                      <Clock size={15} color="var(--gold)"/>
+                      <span className="std-time">{bookingTime || '--:--'}</span>
+                      {bookingTime && (
+                        <span className="std-range">
+                          até {calculateEndTime(bookingTime, serviceDuration)}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
 
-                <div className="time-slots-grid">
-                  {timeSlots.map(t => (
-                    <button
-                      key={t}
-                      type="button"
-                      className={`time-slot-btn ${bookingTime === t ? 'active' : ''}`}
-                      onClick={() => setBookingTime(t)}
-                    >
-                      {t}
-                    </button>
-                  ))}
+                {/* Schedule Meta Bar */}
+                <div className="schedule-meta-bar">
+                  <div className="smb-item">
+                    <span className="smb-label">Procedimento:</span>
+                    <strong>{selected.name}</strong>
+                  </div>
+                  <div className="smb-divider"/>
+                  <div className="smb-item">
+                    <span className="smb-label">Duração estimada:</span>
+                    <strong style={{color:'var(--gold)'}}>
+                      {formatDuration(serviceDuration)}
+                    </strong>
+                  </div>
+                  <div className="smb-divider"/>
+                  <div className="smb-item">
+                    <span className="smb-label">Profissional:</span>
+                    <strong>{barber ? barber.name : 'Qualquer disponível'}</strong>
+                  </div>
                 </div>
+
+                {/* Legend */}
+                <div className="schedule-legend">
+                  <span className="legend-item"><span className="legend-dot available"/> Livre</span>
+                  <span className="legend-item"><span className="legend-dot selected"/> Selecionado</span>
+                  <span className="legend-item"><span className="legend-dot busy"/> Ocupado</span>
+                </div>
+
+                {/* 30-minute Interval Slots Grid */}
+                <div className="time-slots-grid">
+                  {ALL_TIME_SLOTS.map(t => {
+                    const avail = checkSlotAvailability({
+                      slot: t,
+                      date: bookingDate,
+                      duration: serviceDuration,
+                      barber: barber,
+                      barbers: barbers,
+                      existingAppointments: existingAppointments,
+                      services: services,
+                    });
+
+                    const isSelected = bookingTime === t;
+                    const isBusy = !avail.available;
+
+                    return (
+                      <button
+                        key={t}
+                        type="button"
+                        disabled={isBusy}
+                        className={`time-slot-btn ${isSelected ? 'active' : ''} ${isBusy ? 'busy' : 'available'}`}
+                        onClick={() => {
+                          if (!isBusy) {
+                            setBookingTime(t);
+                            setErrorMsg('');
+                          }
+                        }}
+                        title={isBusy ? avail.reason : `Disponível (${t} às ${calculateEndTime(t, serviceDuration)})`}
+                      >
+                        <span className="ts-time">{t}</span>
+                        <span className={`ts-tag ${isSelected ? 'selected' : isBusy ? 'busy' : 'free'}`}>
+                          {isSelected ? 'Escolhido' : isBusy ? 'Ocupado' : 'Livre'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Check if ALL slots are busy for this day */}
+                {ALL_TIME_SLOTS.every(t => !checkSlotAvailability({
+                  slot: t,
+                  date: bookingDate,
+                  duration: serviceDuration,
+                  barber: barber,
+                  barbers: barbers,
+                  existingAppointments: existingAppointments,
+                  services: services,
+                }).available) && (
+                  <div className="schedule-alert-banner">
+                    <AlertCircle size={15} color="#e06c75"/>
+                    <span>
+                      Não há horários disponíveis nesta data para o procedimento de {formatDuration(serviceDuration)}. Por favor, escolha outro dia.
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* CARD PAYMENT FORM */}
@@ -4613,7 +5041,7 @@ function ClientServices({ user, onGoToAppointments }) {
               <div className="csvc-icon"><Scissors size={20}/></div>
               <div className="csvc-body">
                 <strong>{s.name}</strong>
-                <span>{s.duration_minutes} min · {s.category}</span>
+                <span>{formatDuration(s.duration_minutes || 30)} · {s.category}</span>
               </div>
               <div className="csvc-price">
                 <strong>R$ {parseFloat(s.price).toFixed(2)}</strong>
@@ -4739,6 +5167,7 @@ function ClientServices({ user, onGoToAppointments }) {
         onClose={() => setShowPaymentModal(false)}
         user={user}
         selected={selected}
+        services={services}
         barber={barber}
         barbers={barbers}
         payMode={payMode}
