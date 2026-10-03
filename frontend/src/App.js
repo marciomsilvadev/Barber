@@ -269,7 +269,23 @@ function AdminApp({ user, onLogout }) {
 }
 
 // ── Image Upload & Compression Helper ─────────────────────────────────────────
-function compressImage(file, maxWidth = 500, maxHeight = 500, quality = 0.85) {
+function dataURLtoBlob(dataurl) {
+  try {
+    const arr = dataurl.split(',');
+    const mime = arr[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], { type: mime });
+  } catch {
+    return null;
+  }
+}
+
+function compressImage(file, maxWidth = 800, maxHeight = 800, quality = 0.88, cropToSquare = false) {
   return new Promise((resolve) => {
     if (!file || !file.type.startsWith('image/')) {
       resolve(null);
@@ -281,24 +297,38 @@ function compressImage(file, maxWidth = 500, maxHeight = 500, quality = 0.85) {
       const img = new Image();
       img.src = event.target.result;
       img.onload = () => {
-        let width = img.width;
-        let height = img.height;
-        if (width > height) {
-          if (width > maxWidth) {
-            height = Math.round((height * maxWidth) / width);
-            width = maxWidth;
-          }
-        } else {
-          if (height > maxHeight) {
-            width = Math.round((width * maxHeight) / height);
-            height = maxHeight;
-          }
-        }
         const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
         const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
+        const { width, height } = img;
+
+        if (cropToSquare) {
+          // Auto-adjust by center-cropping to square (perfect for round avatars)
+          const size = Math.min(width, height);
+          const sx = (width - size) / 2;
+          const sy = (height - size) / 2;
+          const targetSize = Math.min(size, maxWidth);
+          canvas.width = targetSize;
+          canvas.height = targetSize;
+          ctx.drawImage(img, sx, sy, size, size, 0, 0, targetSize, targetSize);
+        } else {
+          // Auto-adjust proportionally preserving full image content
+          let newW = width;
+          let newH = height;
+          if (newW > newH) {
+            if (newW > maxWidth) {
+              newH = Math.round((newH * maxWidth) / newW);
+              newW = maxWidth;
+            }
+          } else {
+            if (newH > maxHeight) {
+              newW = Math.round((newW * maxHeight) / newH);
+              newH = maxHeight;
+            }
+          }
+          canvas.width = newW;
+          canvas.height = newH;
+          ctx.drawImage(img, 0, 0, newW, newH);
+        }
         resolve(canvas.toDataURL('image/jpeg', quality));
       };
       img.onerror = () => resolve(event.target.result);
@@ -307,12 +337,16 @@ function compressImage(file, maxWidth = 500, maxHeight = 500, quality = 0.85) {
   });
 }
 
-async function uploadImage(file, bucket = 'images') {
-  const compressed = await compressImage(file, 600, 600, 0.85);
+async function uploadImage(file, bucket = 'images', cropToSquare = false) {
+  const compressed = await compressImage(file, 800, 800, 0.88, cropToSquare);
   try {
-    const ext = file.name ? file.name.split('.').pop() : 'jpg';
+    const ext = 'jpg';
     const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-    const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: true });
+    const blob = compressed ? dataURLtoBlob(compressed) : file;
+    const { error } = await supabase.storage.from(bucket).upload(path, blob || file, {
+      upsert: true,
+      contentType: 'image/jpeg'
+    });
     if (!error) {
       const { data } = supabase.storage.from(bucket).getPublicUrl(path);
       if (data?.publicUrl) return data.publicUrl;
@@ -320,7 +354,7 @@ async function uploadImage(file, bucket = 'images') {
   } catch (err) {
     console.warn('Storage upload error, using local compressed data URL:', err);
   }
-  // Se o bucket não existir ou der erro no Supabase Storage, usa o base64 comprimido
+  // Se o bucket não existir ou der erro no Supabase Storage, usa o base64 comprimido auto-ajustado
   return compressed;
 }
 
@@ -337,7 +371,7 @@ function ImageUploadField({ label, value, onChange }) {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
-    const url = await uploadImage(file);
+    const url = await uploadImage(file, 'images', false);
     setUploading(false);
     if (url) {
       setPreview(url);
@@ -345,18 +379,53 @@ function ImageUploadField({ label, value, onChange }) {
     }
   }
 
+  function handleRemove(e) {
+    e.stopPropagation();
+    setPreview(null);
+    onChange('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }
+
   return (
-    <label className="image-upload-field">
-      <span>{label}</span>
-      <div className="image-upload-box" onClick={() => fileInputRef.current?.click()}>
+    <div className="image-upload-field">
+      <span className="upload-label">{label}</span>
+      <div
+        className={`image-upload-box ${preview ? 'has-preview' : ''}`}
+        onClick={() => fileInputRef.current?.click()}
+      >
         {uploading ? (
-          <span className="upload-hint">Processando foto...</span>
+          <div className="upload-hint">
+            <Camera size={24} color="var(--gold)"/>
+            <span>Auto-ajustando e otimizando foto...</span>
+          </div>
         ) : preview ? (
-          <img src={preview} alt="preview" className="upload-preview" />
+          <div className="upload-preview-wrapper">
+            <img src={preview} alt="preview" className="upload-preview" />
+            <div className="upload-preview-overlay">
+              <Camera size={18}/>
+              <span>Clique para trocar foto</span>
+            </div>
+          </div>
         ) : (
-          <span className="upload-hint"><Camera size={20}/><br/>Clique para anexar foto</span>
+          <div className="upload-hint">
+            <Camera size={24} color="var(--gold)"/>
+            <span>Clique para anexar foto</span>
+            <small style={{color:'#666', fontSize:10}}>A foto se auto-ajusta proporcionalmente</small>
+          </div>
         )}
       </div>
+
+      {preview && !uploading && (
+        <div className="preview-actions-bar">
+          <span className="auto-adjusted-tag">
+            <Check size={12} color="var(--gold)"/> Foto auto-ajustada
+          </span>
+          <button type="button" className="remove-photo-btn" onClick={handleRemove}>
+            <Trash2 size={12}/> Remover
+          </button>
+        </div>
+      )}
+
       <input
         ref={fileInputRef}
         type="file"
@@ -364,7 +433,7 @@ function ImageUploadField({ label, value, onChange }) {
         style={{ display: 'none' }}
         onChange={handle}
       />
-    </label>
+    </div>
   );
 }
 
@@ -1987,7 +2056,8 @@ function ClientProfile({ user, onUpdate }) {
     setUploadingAvatar(true);
     setMsg('');
     try {
-      const url = await uploadImage(file);
+      // Auto-ajusta e centraliza a foto perfeitamente no formato quadrado para o avatar
+      const url = await uploadImage(file, 'avatars', true);
       if (url) {
         // 1. Salva nos metadados do auth (persiste na sessão do Supabase)
         await supabase.auth.updateUser({ data: { avatar_url: url } });
@@ -1999,7 +2069,7 @@ function ClientProfile({ user, onUpdate }) {
         localStorage.setItem(`barber_avatar_${user.id}`, url);
         // 4. Atualiza o estado da aplicação
         if (onUpdate) onUpdate({ ...user, avatar_url: url });
-        setMsg('Foto atualizada com sucesso!');
+        setMsg('Foto auto-ajustada e atualizada com sucesso!');
       }
     } catch (err) {
       setMsg('Erro ao atualizar foto: ' + err.message);
@@ -2020,11 +2090,15 @@ function ClientProfile({ user, onUpdate }) {
               ? <img src={user.avatar_url} alt={user.full_name} className="avatar-large"/>
               : <div className="avatar-large avatar-placeholder">{user.full_name?.[0] || 'U'}</div>}
             <div className="avatar-overlay">
-              <Camera size={18}/> {uploadingAvatar ? 'Processando...' : 'Alterar foto'}
+              <Camera size={20}/>
+              <span>{uploadingAvatar ? 'Ajustando...' : 'Alterar foto'}</span>
             </div>
             <input type="file" accept="image/*" style={{display:'none'}} onChange={handleAvatarUpload} disabled={uploadingAvatar}/>
           </label>
-          <strong style={{marginTop:14,fontSize:16}}>{user.full_name}</strong>
+          <span style={{fontSize:11, color:'var(--gold)', marginTop:8, display:'flex', alignItems:'center', gap:4}}>
+            <Check size={12}/> Foto auto-ajustada ao perfil
+          </span>
+          <strong style={{marginTop:8,fontSize:16}}>{user.full_name}</strong>
           <small style={{color:'#666'}}>{user.email}</small>
         </div>
 
