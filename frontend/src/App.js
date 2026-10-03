@@ -4,7 +4,7 @@ import {
   CalendarDays, Camera, ChevronRight, Clock3, CreditCard, Edit2, LogOut, MapPin,
   QrCode, Scissors, ShieldCheck, Star, Trash2, User, X, ShoppingBag, Plus, Play, Check,
   Lock, CheckCircle2, Copy, Calendar, Clock, AlertCircle, DollarSign, CalendarCheck,
-  Bell, Printer, Search
+  Bell, Printer, Search, MessageCircle, Phone, Settings, Send
 } from "lucide-react";
 import { BrowserRouter } from "react-router-dom";
 import { supabase } from "./lib/supabase";
@@ -25,6 +25,113 @@ function resolveImage(src, fallback) {
 function autoCap(str) {
   if (typeof str !== 'string' || !str) return str || '';
   return str.replace(/^(\s*)([a-z\u00E0-\u00FD])/i, (_, space, char) => space + char.toUpperCase());
+}
+
+// ── WhatsApp Notification Helpers ─────────────────────────────────────────────
+function cleanWhatsAppNumber(phone) {
+  if (!phone) return '';
+  let clean = String(phone).replace(/\D/g, '');
+  if (!clean) return '';
+  if (clean.length === 10 || clean.length === 11) {
+    clean = '55' + clean;
+  }
+  return clean;
+}
+
+function formatWhatsAppBarberMessage(appt) {
+  const clientName = appt.client_name || 'Cliente Atelier';
+  const clientEmail = appt.client_email ? ` (${appt.client_email})` : '';
+  const serviceName = appt.service_type || appt.service_name || 'Serviço Atelier';
+  const barberName = appt.barber_name || 'Profissional';
+  const dateFormatted = appt.date ? appt.date.split('-').reverse().join('/') : 'Data a definir';
+  const timeFormatted = appt.time || '10:00';
+  const priceFormatted = parseFloat(appt.price || 0).toFixed(2);
+  const paymentMethod = appt.payment_method || 'Pago';
+  const code = (appt.id ? String(appt.id).slice(0, 8) : String(Date.now()).slice(-6)).toUpperCase();
+
+  return encodeURIComponent(
+    `💈 *ATELIER BARBER · NOVO AGENDAMENTO*\n\n` +
+    `Olá, *${barberName}*! Você recebeu um novo agendamento:\n\n` +
+    `🔖 *Código da Reserva:* #${code}\n` +
+    `👤 *Cliente:* ${clientName}${clientEmail}\n` +
+    `✂️ *Serviço:* ${serviceName}\n` +
+    `📅 *Data e Horário:* ${dateFormatted} às ${timeFormatted}\n` +
+    `💰 *Valor do Serviço:* R$ ${priceFormatted} (${paymentMethod})\n` +
+    `✅ *Status:* Pagamento Confirmado & Vaga Garantida\n\n` +
+    `_Atelier Barber System_`
+  );
+}
+
+function formatWhatsAppEstablishmentMessage(appt, establishmentName = 'Atelier Barber') {
+  const clientName = appt.client_name || 'Cliente Atelier';
+  const clientEmail = appt.client_email ? ` (${appt.client_email})` : '';
+  const serviceName = appt.service_type || appt.service_name || 'Serviço Atelier';
+  const barberName = appt.barber_name || 'Profissional Atelier';
+  const dateFormatted = appt.date ? appt.date.split('-').reverse().join('/') : 'Data a definir';
+  const timeFormatted = appt.time || '10:00';
+  const priceFormatted = parseFloat(appt.price || 0).toFixed(2);
+  const paymentMethod = appt.payment_method || 'Pago';
+  const code = (appt.id ? String(appt.id).slice(0, 8) : String(Date.now()).slice(-6)).toUpperCase();
+
+  return encodeURIComponent(
+    `💈 *${establishmentName.toUpperCase()} · NOVO AGENDAMENTO RECEBIDO*\n\n` +
+    `Novo atendimento registrado com sucesso no sistema:\n\n` +
+    `🔖 *Reserva:* #${code}\n` +
+    `💈 *Profissional:* ${barberName}\n` +
+    `👤 *Cliente:* ${clientName}${clientEmail}\n` +
+    `✂️ *Serviço:* ${serviceName}\n` +
+    `📅 *Data e Horário:* ${dateFormatted} às ${timeFormatted}\n` +
+    `💰 *Receita Confirmada:* R$ ${priceFormatted} (${paymentMethod})\n` +
+    `✅ *Status Financeiro:* Pago\n\n` +
+    `_Gestão Atelier Barber_`
+  );
+}
+
+function formatWhatsAppClientMessage(appt) {
+  const clientName = appt.client_name || 'Cliente';
+  const serviceName = appt.service_type || appt.service_name || 'Serviço Atelier';
+  const barberName = appt.barber_name || 'Profissional Atelier';
+  const dateFormatted = appt.date ? appt.date.split('-').reverse().join('/') : 'Data a definir';
+  const timeFormatted = appt.time || '10:00';
+  const priceFormatted = parseFloat(appt.price || 0).toFixed(2);
+  const code = (appt.id ? String(appt.id).slice(0, 8) : String(Date.now()).slice(-6)).toUpperCase();
+
+  return encodeURIComponent(
+    `💈 *ATELIER BARBER · COMPROVANTE DE AGENDAMENTO*\n\n` +
+    `Olá, *${clientName}*! Seu horário foi agendado com sucesso:\n\n` +
+    `🔖 *Código:* #${code}\n` +
+    `✂️ *Serviço:* ${serviceName}\n` +
+    `💈 *Profissional:* ${barberName}\n` +
+    `📅 *Data e Hora:* ${dateFormatted} às ${timeFormatted}\n` +
+    `💰 *Total Pago:* R$ ${priceFormatted}\n\n` +
+    `Aguardamos você no Atelier Barber! Qualquer dúvida, estamos à disposição.`
+  );
+}
+
+function getWhatsAppUrlForBarber(appt, rawPhone) {
+  const clean = cleanWhatsAppNumber(rawPhone);
+  if (!clean) return '';
+  return `https://wa.me/${clean}?text=${formatWhatsAppBarberMessage(appt)}`;
+}
+
+function getWhatsAppUrlForEstablishment(appt, rawPhone, estName) {
+  const clean = cleanWhatsAppNumber(rawPhone);
+  if (!clean) return '';
+  return `https://wa.me/${clean}?text=${formatWhatsAppEstablishmentMessage(appt, estName)}`;
+}
+
+function getWhatsAppUrlForClient(appt, rawPhone) {
+  const clean = cleanWhatsAppNumber(rawPhone);
+  const base = clean ? `https://wa.me/${clean}` : `https://api.whatsapp.com/send`;
+  return `${base}?text=${formatWhatsAppClientMessage(appt)}`;
+}
+
+// Backward compatibility aliases
+function formatWhatsAppMessage(appt) {
+  return formatWhatsAppBarberMessage(appt);
+}
+function getWhatsAppUrl(appt, rawPhone) {
+  return getWhatsAppUrlForBarber(appt, rawPhone);
 }
 
 // -----------------------------------------------------------------------------
@@ -482,20 +589,48 @@ function Modal({ title, onClose, children }) {
 function AdminBarbers({ user }) {
   const [barbers, setBarbers] = useState([]);
   const [modal, setModal] = useState(false);
-  const [form, setForm] = useState({ id: null, name: '', specialties: '', price: '', image: '' });
+  const [form, setForm] = useState({ id: null, name: '', phone: '', specialties: '', price: '', image: '' });
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
-    const { data } = await supabase.from('barbers').select('*').eq('tenant_id', user.tenant_id);
-    if (data) setBarbers(data);
+    let dbData = [];
+    try {
+      const { data, error } = await supabase.from('barbers').select('*').eq('tenant_id', user.tenant_id);
+      if (!error && data) dbData = data;
+    } catch {}
+
+    let storedPhones = {};
+    try {
+      storedPhones = JSON.parse(localStorage.getItem('barber_barber_phones') || '{}');
+    } catch {}
+
+    const enriched = dbData.map(b => ({
+      ...b,
+      phone: b.phone || storedPhones[b.id] || storedPhones[b.name] || ''
+    }));
+    setBarbers(enriched);
   }, [user.tenant_id]);
+
   useEffect(() => { load(); }, [load]);
 
   function openModal(b = null) {
+    let storedPhones = {};
+    try {
+      storedPhones = JSON.parse(localStorage.getItem('barber_barber_phones') || '{}');
+    } catch {}
+
     if (b) {
-      setForm({ id: b.id, name: b.name, specialties: (b.specialties || []).join(', '), price: b.price, image: b.image || '' });
+      const phone = b.phone || storedPhones[b.id] || storedPhones[b.name] || '';
+      setForm({
+        id: b.id,
+        name: b.name,
+        phone: phone,
+        specialties: (b.specialties || []).join(', '),
+        price: b.price,
+        image: b.image || ''
+      });
     } else {
-      setForm({ id: null, name: '', specialties: '', price: '', image: '' });
+      setForm({ id: null, name: '', phone: '', specialties: '', price: '', image: '' });
     }
     setModal(true);
   }
@@ -503,18 +638,62 @@ function AdminBarbers({ user }) {
   async function save() {
     if (!form.name || !form.price) return;
     setSaving(true);
-    const payload = {
+
+    // Save phone to localStorage map so it is permanently available
+    try {
+      const storedPhones = JSON.parse(localStorage.getItem('barber_barber_phones') || '{}');
+      if (form.id) storedPhones[form.id] = form.phone;
+      storedPhones[form.name] = form.phone;
+      localStorage.setItem('barber_barber_phones', JSON.stringify(storedPhones));
+    } catch {}
+
+    const payloadWithPhone = {
+      tenant_id: user.tenant_id,
+      name: form.name,
+      phone: form.phone || null,
+      specialties: form.specialties ? form.specialties.split(',').map(s => s.trim()) : [],
+      price: parseFloat(form.price),
+      image: form.image || null,
+    };
+
+    const payloadWithoutPhone = {
       tenant_id: user.tenant_id,
       name: form.name,
       specialties: form.specialties ? form.specialties.split(',').map(s => s.trim()) : [],
       price: parseFloat(form.price),
       image: form.image || null,
     };
-    if (form.id) {
-      await supabase.from('barbers').update(payload).eq('id', form.id);
-    } else {
-      await supabase.from('barbers').insert(payload);
+
+    try {
+      if (form.id) {
+        const { error } = await supabase.from('barbers').update(payloadWithPhone).eq('id', form.id);
+        if (error) {
+          // If 'phone' column does not exist in Supabase table, update without it
+          await supabase.from('barbers').update(payloadWithoutPhone).eq('id', form.id);
+        }
+      } else {
+        const { data: inserted, error } = await supabase.from('barbers').insert(payloadWithPhone).select().single();
+        if (error) {
+          const { data: fallbackIns } = await supabase.from('barbers').insert(payloadWithoutPhone).select().single();
+          if (fallbackIns) {
+            try {
+              const storedPhones = JSON.parse(localStorage.getItem('barber_barber_phones') || '{}');
+              storedPhones[fallbackIns.id] = form.phone;
+              localStorage.setItem('barber_barber_phones', JSON.stringify(storedPhones));
+            } catch {}
+          }
+        } else if (inserted) {
+          try {
+            const storedPhones = JSON.parse(localStorage.getItem('barber_barber_phones') || '{}');
+            storedPhones[inserted.id] = form.phone;
+            localStorage.setItem('barber_barber_phones', JSON.stringify(storedPhones));
+          } catch {}
+        }
+      }
+    } catch (e) {
+      console.warn('Barber save notice:', e);
     }
+
     setSaving(false);
     setModal(false);
     load();
@@ -528,14 +707,14 @@ function AdminBarbers({ user }) {
   return (
     <section className="admin-view fade-in">
       <div className="section-head">
-        <div><h3>Equipe</h3><p className="section-sub">Gerencie seus profissionais</p></div>
-        <button className="gold-button compact" onClick={() => setModal(true)}><Plus size={15}/> Adicionar</button>
+        <div><h3>Equipe</h3><p className="section-sub">Gerencie seus profissionais e configure o WhatsApp de cada um</p></div>
+        <button className="gold-button compact" onClick={() => openModal()}><Plus size={15}/> Adicionar</button>
       </div>
       {barbers.length === 0 ? (
         <div className="premium-empty">
           <Scissors size={32} opacity={0.2}/>
           <p>Nenhum barbeiro cadastrado ainda.</p>
-          <button className="outline-button compact" style={{width:'auto',margin:'16px auto 0'}} onClick={() => setModal(true)}>Adicionar primeiro barbeiro</button>
+          <button className="outline-button compact" style={{width:'auto',margin:'16px auto 0'}} onClick={() => openModal()}>Adicionar primeiro barbeiro</button>
         </div>
       ) : (
         <div className="pro-card-grid">
@@ -547,11 +726,31 @@ function AdminBarbers({ user }) {
               <div className="pro-card-body">
                 <strong className="pro-name">{b.name}</strong>
                 <div className="pro-meta"><Star size={11} fill="var(--gold)" color="var(--gold)"/> {b.rating?.toFixed(1) || '5.0'}</div>
+                
+                {/* WhatsApp Badge */}
+                <div className="pro-whatsapp-tag">
+                  <MessageCircle size={13} color={b.phone ? "#25D366" : "#666"}/>
+                  <span className={b.phone ? "has-phone" : "no-phone"}>
+                    {b.phone ? b.phone : "WhatsApp não configurado"}
+                  </span>
+                  {b.phone && (
+                    <a
+                      href={`https://wa.me/${cleanWhatsAppNumber(b.phone)}?text=${encodeURIComponent(`💈 Olá ${b.name}! Teste de recebimento de agendamentos Atelier Barber.`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="pro-wa-link"
+                      title="Testar notificação no WhatsApp deste profissional"
+                    >
+                      Testar
+                    </a>
+                  )}
+                </div>
+
                 {b.specialties?.length > 0 && <div className="pro-tags">{b.specialties.map(s => <span key={s}>{s}</span>)}</div>}
                 <div className="pro-footer">
                   <strong className="pro-price">R$ {b.price}</strong>
                   <div style={{display:'flex', gap:6}}>
-                    <button className="icon-button" onClick={() => openModal(b)}><Edit2 size={14}/></button>
+                    <button className="icon-button" onClick={() => openModal(b)} title="Editar dados e WhatsApp"><Edit2 size={14}/></button>
                     <button className="icon-button danger" onClick={() => remove(b.id)}><Trash2 size={14}/></button>
                   </div>
                 </div>
@@ -561,13 +760,22 @@ function AdminBarbers({ user }) {
         </div>
       )}
       {modal && (
-        <Modal title="Novo Profissional" onClose={() => setModal(false)}>
+        <Modal title={form.id ? "Editar Profissional" : "Novo Profissional"} onClose={() => setModal(false)}>
           <div className="modal-form">
             <label>Nome completo<input placeholder="Ex: Rafael Moura" value={form.name} onChange={e => setForm({...form, name: autoCap(e.target.value)})}/></label>
+            <label>
+              WhatsApp / Celular do Profissional
+              <span className="label-hint">(ex: 11 99999-8888 — para receber notificações de agendamentos)</span>
+              <input
+                placeholder="Ex: 11 99999-8888"
+                value={form.phone}
+                onChange={e => setForm({...form, phone: e.target.value})}
+              />
+            </label>
             <label>Especialidades <span className="label-hint">(separe por vírgula)</span><input placeholder="Corte, Barba, Coloração" value={form.specialties} onChange={e => setForm({...form, specialties: autoCap(e.target.value)})}/></label>
             <label>Valor base (R$)<input type="number" placeholder="80" value={form.price} onChange={e => setForm({...form, price: e.target.value})}/></label>
             <ImageUploadField label="Foto do profissional" value={form.image} onChange={url => setForm({...form, image: url})}/>
-            <button className="gold-button" style={{marginTop:24}} onClick={save} disabled={saving}>{saving ? 'Salvando...' : 'Cadastrar profissional'}<ChevronRight size={16}/></button>
+            <button className="gold-button" style={{marginTop:24}} onClick={save} disabled={saving}>{saving ? 'Salvando...' : 'Salvar profissional'}<ChevronRight size={16}/></button>
           </div>
         </Modal>
       )}
@@ -1172,13 +1380,25 @@ function AdminAppointments({ user }) {
   const [selectedReceipt, setSelectedReceipt] = useState(null);
   const [toastNotification, setToastNotification] = useState(null);
 
+  // WhatsApp Configuration State
+  const [establishmentWA, setEstablishmentWA] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('barber_establishment_whatsapp') || '{"phone":"","name":"Atelier Barber","autoNotify":true}');
+    } catch {
+      return { phone: '', name: 'Atelier Barber', autoNotify: true };
+    }
+  });
+  const [waConfigModal, setWaConfigModal] = useState(false);
+  const [waForm, setWaForm] = useState(establishmentWA);
+  const [barberPhones, setBarberPhones] = useState({});
+
   const loadAppointments = useCallback(async () => {
     setLoading(true);
     let dbAppts = [];
     try {
       let query = supabase
         .from('appointments')
-        .select('*, barbers(name, image), user_profiles(full_name)')
+        .select('*, barbers(name, image, phone), user_profiles(full_name)')
         .order('created_at', { ascending: false });
       if (user.tenant_id) query = query.eq('tenant_id', user.tenant_id);
       const { data, error } = await query;
@@ -1192,21 +1412,32 @@ function AdminAppointments({ user }) {
       localAppts = JSON.parse(localStorage.getItem('barber_all_appointments') || '[]');
     } catch {}
 
+    let storedPhones = {};
+    try {
+      storedPhones = JSON.parse(localStorage.getItem('barber_barber_phones') || '{}');
+      setBarberPhones(storedPhones);
+    } catch {}
+
     // Merge DB and local storage records seamlessly
     const map = new Map();
     localAppts.forEach(a => map.set(a.id, a));
     dbAppts.forEach(a => {
       const local = map.get(a.id);
+      const bPhone = a.barbers?.phone || storedPhones[a.barber_id] || storedPhones[a.barbers?.name] || local?.barber_phone || '';
       map.set(a.id, {
         ...local,
         ...a,
         client_name: a.user_profiles?.full_name || local?.client_name || 'Cliente Atelier',
         barber_name: a.barbers?.name || local?.barber_name || 'Profissional Atelier',
+        barber_phone: bPhone,
         payment_method: local?.payment_method || (a.payment_status === 'Pago' ? 'Pagamento Aprovado' : 'Pendente'),
       });
     });
 
-    const list = Array.from(map.values()).sort((a, b) => {
+    const list = Array.from(map.values()).map(a => ({
+      ...a,
+      barber_phone: a.barber_phone || storedPhones[a.barber_id] || storedPhones[a.barber_name] || ''
+    })).sort((a, b) => {
       const timeA = new Date(a.created_at || a.date).getTime();
       const timeB = new Date(b.created_at || b.date).getTime();
       return timeB - timeA;
@@ -1224,9 +1455,11 @@ function AdminAppointments({ user }) {
       if (appt) {
         setToastNotification({
           title: 'Novo Pagamento & Agendamento Recebido!',
+          rawAppt: appt,
           client: appt.client_name || 'Cliente',
           service: appt.service_type || appt.service_name || 'Serviço',
           barber: appt.barber_name || 'Profissional Atelier',
+          barberPhone: appt.barber_phone || barberPhones[appt.barber_id] || barberPhones[appt.barber_name] || '',
           date: appt.date ? appt.date.split('-').reverse().join('/') : 'Data agendada',
           time: appt.time || '10:00',
           price: parseFloat(appt.price || 0).toFixed(2),
@@ -1238,7 +1471,7 @@ function AdminAppointments({ user }) {
     window.addEventListener('barber_new_appointment', handleNewAppt);
 
     function handleStorage(e) {
-      if (e.key === 'barber_all_appointments') {
+      if (e.key === 'barber_all_appointments' || e.key === 'barber_barber_phones' || e.key === 'barber_establishment_whatsapp') {
         loadAppointments();
       }
     }
@@ -1251,9 +1484,11 @@ function AdminAppointments({ user }) {
         if (payload.eventType === 'INSERT') {
           setToastNotification({
             title: 'Novo Pagamento Confirmado no Supabase!',
+            rawAppt: payload.new,
             client: 'Cliente Atelier',
             service: payload.new.service_type,
             barber: 'Profissional Atelier',
+            barberPhone: '',
             date: payload.new.date ? payload.new.date.split('-').reverse().join('/') : '',
             time: payload.new.time,
             price: parseFloat(payload.new.price || 0).toFixed(2),
@@ -1268,7 +1503,19 @@ function AdminAppointments({ user }) {
       window.removeEventListener('storage', handleStorage);
       supabase.removeChannel(channel);
     };
-  }, [loadAppointments]);
+  }, [loadAppointments, barberPhones]);
+
+  function saveEstablishmentWA() {
+    setEstablishmentWA(waForm);
+    try {
+      localStorage.setItem('barber_establishment_whatsapp', JSON.stringify(waForm));
+    } catch {}
+    setWaConfigModal(false);
+  }
+
+  function getBarberPhoneForAppt(a) {
+    return a.barber_phone || a.barbers?.phone || barberPhones[a.barber_id] || barberPhones[a.barber_name] || '';
+  }
 
   async function updateAppointmentStatus(id, newStatus) {
     try {
@@ -1318,6 +1565,39 @@ function AdminAppointments({ user }) {
               <p>
                 <strong>{toastNotification.client}</strong> pagou <strong>R$ {toastNotification.price}</strong> via {toastNotification.method} para <strong>{toastNotification.service}</strong> com {toastNotification.barber} em {toastNotification.date} às {toastNotification.time}.
               </p>
+              {/* Instant WhatsApp buttons in Toast */}
+              <div style={{display:'flex', gap:8, marginTop:8, flexWrap:'wrap'}}>
+                {toastNotification.rawAppt && (() => {
+                  const bPhone = getBarberPhoneForAppt(toastNotification.rawAppt) || toastNotification.barberPhone;
+                  const estPhone = establishmentWA.phone;
+                  return (
+                    <>
+                      {bPhone && (
+                        <a
+                          href={getWhatsAppUrlForBarber(toastNotification.rawAppt, bPhone)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="alb-wa-btn"
+                          title="Notificar barbeiro imediatamente via WhatsApp"
+                        >
+                          <MessageCircle size={13}/> Notificar Barbeiro
+                        </a>
+                      )}
+                      {estPhone && (
+                        <a
+                          href={getWhatsAppUrlForEstablishment(toastNotification.rawAppt, estPhone, establishmentWA.name)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="alb-wa-btn secondary"
+                          title="Notificar barbearia via WhatsApp"
+                        >
+                          <Send size={13}/> Notificar Barbearia
+                        </a>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
             </div>
           </div>
           <button className="alb-close-btn" onClick={() => setToastNotification(null)}><X size={16}/></button>
@@ -1354,7 +1634,7 @@ function AdminAppointments({ user }) {
         </div>
       </div>
 
-      {/* Filter and Search Bar */}
+      {/* Filter and Search Bar with WhatsApp config */}
       <div className="admin-toolbar" style={{marginTop:24}}>
         <div className="category-filter-row" style={{marginBottom:0}}>
           {['Todos', 'Hoje', 'Pago', 'Concluído', 'Cancelado'].map(st => (
@@ -1368,16 +1648,28 @@ function AdminAppointments({ user }) {
           ))}
         </div>
 
-        <div className="admin-search-box">
-          <Search size={15} color="#888"/>
-          <input
-            placeholder="Buscar por cliente, barbeiro ou serviço..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-          />
-          {searchQuery && (
-            <button onClick={() => setSearchQuery('')} className="search-clear"><X size={13}/></button>
-          )}
+        <div style={{display:'flex', gap:10, alignItems:'center', flexWrap:'wrap'}}>
+          <button
+            className="outline-button compact wa-toolbar-btn"
+            onClick={() => { setWaForm(establishmentWA); setWaConfigModal(true); }}
+            title="Configurar WhatsApp do Responsável pela Barbearia"
+          >
+            <MessageCircle size={14} color="#25D366"/>
+            <span>WhatsApp Barbearia: <strong>{establishmentWA.phone || 'Configurar'}</strong></span>
+            <Settings size={12} color="#888"/>
+          </button>
+
+          <div className="admin-search-box">
+            <Search size={15} color="#888"/>
+            <input
+              placeholder="Buscar por cliente, barbeiro ou serviço..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} className="search-clear"><X size={13}/></button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1394,6 +1686,9 @@ function AdminAppointments({ user }) {
           <div className="admin-appt-list">
             {filteredAppointments.map(a => {
               const isToday = a.date === todayStr;
+              const bPhone = getBarberPhoneForAppt(a);
+              const estPhone = establishmentWA.phone;
+
               return (
                 <div key={a.id} className={`admin-appt-card ${isToday ? 'is-today' : ''}`}>
                   {/* Date & Time Column */}
@@ -1418,6 +1713,7 @@ function AdminAppointments({ user }) {
                   <div className="aac-service-col">
                     <strong>{a.service_type || a.service_name || 'Serviço'}</strong>
                     <span>Com {a.barber_name || 'Profissional Atelier'}</span>
+                    {bPhone && <span className="aac-barber-wa-info"><MessageCircle size={10} color="#25D366"/> {bPhone}</span>}
                   </div>
 
                   {/* Payment Details */}
@@ -1428,6 +1724,54 @@ function AdminAppointments({ user }) {
                         {a.payment_status === 'Pago' ? '✓ PAGO' : 'Pendente'}
                       </span>
                       <span className="payment-method-tag">{a.payment_method || 'Cartão'}</span>
+                    </div>
+                  </div>
+
+                  {/* WhatsApp Quick Actions Column */}
+                  <div className="aac-wa-col">
+                    <div className="aac-wa-buttons">
+                      {bPhone ? (
+                        <a
+                          href={getWhatsAppUrlForBarber(a, bPhone)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="wa-btn-chip barber"
+                          title={`Notificar Barbeiro (${a.barber_name}) no WhatsApp (${bPhone})`}
+                        >
+                          <MessageCircle size={12} color="#25D366"/>
+                          <span>Avisar Barbeiro</span>
+                        </a>
+                      ) : (
+                        <span
+                          className="wa-btn-chip disabled"
+                          title="Barbeiro sem WhatsApp cadastrado. Edite em 'Profissionais'."
+                        >
+                          <MessageCircle size={12} color="#666"/>
+                          <span>Sem WhatsApp</span>
+                        </span>
+                      )}
+
+                      {estPhone ? (
+                        <a
+                          href={getWhatsAppUrlForEstablishment(a, estPhone, establishmentWA.name)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="wa-btn-chip establishment"
+                          title={`Notificar Responsável pela Barbearia (${estPhone})`}
+                        >
+                          <Send size={12} color="var(--gold)"/>
+                          <span>Avisar Barbearia</span>
+                        </a>
+                      ) : (
+                        <button
+                          className="wa-btn-chip setup"
+                          onClick={() => { setWaForm(establishmentWA); setWaConfigModal(true); }}
+                          title="Configurar número da barbearia para receber notificações"
+                        >
+                          <Settings size={12}/>
+                          <span>Config. Whats</span>
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -1502,12 +1846,112 @@ function AdminAppointments({ user }) {
               <div className="rd-item total-row"><span>Total Pago:</span><strong className="total-gold">R$ {parseFloat(selectedReceipt.price || 0).toFixed(2)}</strong></div>
             </div>
 
-            <div style={{display:'flex', gap:10, marginTop:24}}>
+            {/* WhatsApp Dispatch Section inside Receipt Modal */}
+            <div className="receipt-wa-box">
+              <div className="receipt-wa-header">
+                <MessageCircle size={15} color="#25D366"/>
+                <strong>NOTIFICAR VIA WHATSAPP</strong>
+              </div>
+              <div className="receipt-wa-grid">
+                {(() => {
+                  const bPhone = getBarberPhoneForAppt(selectedReceipt);
+                  const estPhone = establishmentWA.phone;
+                  return (
+                    <>
+                      {bPhone && (
+                        <a
+                          href={getWhatsAppUrlForBarber(selectedReceipt, bPhone)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="whatsapp-btn-full"
+                          title="Abrir WhatsApp com mensagem pronta para o barbeiro"
+                        >
+                          <MessageCircle size={15}/>
+                          <span>Enviar ao Barbeiro ({selectedReceipt.barber_name})</span>
+                        </a>
+                      )}
+                      {estPhone && (
+                        <a
+                          href={getWhatsAppUrlForEstablishment(selectedReceipt, estPhone, establishmentWA.name)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="whatsapp-btn-full outline"
+                          title="Abrir WhatsApp com mensagem pronta para a barbearia"
+                        >
+                          <Send size={15}/>
+                          <span>Enviar à Barbearia ({establishmentWA.name})</span>
+                        </a>
+                      )}
+                      {!bPhone && !estPhone && (
+                        <div style={{fontSize:11, color:'#888', gridColumn:'1 / -1', textAlign:'center', padding:8}}>
+                          Cadastre o WhatsApp do profissional em 'Profissionais' ou da barbearia no topo para disparar o comprovante com 1 clique.
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+
+            <div style={{display:'flex', gap:10, marginTop:20}}>
               <button className="gold-button" style={{flex:1}} onClick={() => window.print()}>
                 <Printer size={15}/> Imprimir Comprovante
               </button>
               <button className="outline-button" onClick={() => setSelectedReceipt(null)}>
                 Fechar
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* WhatsApp Configuration Modal */}
+      {waConfigModal && (
+        <Modal title="Configurar WhatsApp da Barbearia" onClose={() => setWaConfigModal(false)}>
+          <div className="modal-form">
+            <div className="wa-config-banner">
+              <div className="wa-config-icon"><MessageCircle size={28} color="#25D366"/></div>
+              <div>
+                <strong>Avisos Automáticos no WhatsApp</strong>
+                <p>Receba alertas instantâneos de novos agendamentos e pagamentos aprovados no WhatsApp da barbearia.</p>
+              </div>
+            </div>
+
+            <label>
+              WhatsApp do Responsável / Recepção
+              <span className="label-hint">(ex: 11 99999-8888 ou 5511999998888)</span>
+              <input
+                placeholder="Ex: 11 99999-8888"
+                value={waForm.phone}
+                onChange={e => setWaForm({...waForm, phone: e.target.value})}
+              />
+            </label>
+
+            <label>
+              Nome do Estabelecimento / Barbearia
+              <input
+                placeholder="Atelier Barber"
+                value={waForm.name}
+                onChange={e => setWaForm({...waForm, name: autoCap(e.target.value)})}
+              />
+            </label>
+
+            <div className="wa-info-card">
+              <ShieldCheck size={18} color="var(--gold)"/>
+              <div>
+                <strong>Avisos individuais por Barbeiro:</strong>
+                <p>
+                  O WhatsApp de cada profissional pode ser configurado na aba <strong>Profissionais</strong>. O sistema permite disparar alertas diretamente para o celular do barbeiro que irá realizar o corte!
+                </p>
+              </div>
+            </div>
+
+            <div style={{display:'flex', gap:10, marginTop:24}}>
+              <button className="gold-button" style={{flex:1}} onClick={saveEstablishmentWA}>
+                <Check size={16}/> Salvar Configurações
+              </button>
+              <button className="outline-button" onClick={() => setWaConfigModal(false)}>
+                Cancelar
               </button>
             </div>
           </div>
@@ -1636,15 +2080,27 @@ function ClientAppointments({ user, onGoToServices }) {
 
               <div className="appt-footer">
                 <span className="appt-price">R$ {parseFloat(a.price || 0).toFixed(2)}</span>
-                {a.status !== 'Cancelado' && (
-                  <button
-                    className="text-button"
-                    style={{color:'#d98080', fontSize:11}}
-                    onClick={() => cancelAppointment(a.id)}
+                <div style={{display:'flex', gap:10, alignItems:'center'}}>
+                  <a
+                    href={getWhatsAppUrlForClient(a, '')}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="client-wa-link"
+                    title="Ver comprovante e detalhes no WhatsApp"
                   >
-                    Cancelar
-                  </button>
-                )}
+                    <MessageCircle size={13} color="#25D366"/>
+                    <span>WhatsApp</span>
+                  </a>
+                  {a.status !== 'Cancelado' && (
+                    <button
+                      className="text-button"
+                      style={{color:'#d98080', fontSize:11}}
+                      onClick={() => cancelAppointment(a.id)}
+                    >
+                      Cancelar
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           ))}
@@ -1902,6 +2358,71 @@ function PaymentModal({
                 <div className="receipt-row" style={{borderTop:'1px solid var(--gold)', marginTop:6, paddingTop:6}}>
                   <span>Total Cobrado:</span>
                   <strong style={{color:'var(--gold)', fontSize:14}}>R$ {total.toFixed(2)}</strong>
+                </div>
+              </div>
+
+              {/* WhatsApp Notification Box */}
+              <div className="payment-wa-box">
+                <div className="payment-wa-title">
+                  <MessageCircle size={15} color="#25D366"/>
+                  <strong>NOTIFICAÇÃO NO WHATSAPP</strong>
+                </div>
+                <p className="payment-wa-subtitle">
+                  Avise o profissional ou a gerência da barbearia com 1 clique:
+                </p>
+                <div className="payment-wa-actions">
+                  {(() => {
+                    let bPhone = barber?.phone;
+                    if (!bPhone) {
+                      try {
+                        const stored = JSON.parse(localStorage.getItem('barber_barber_phones') || '{}');
+                        bPhone = stored[barber?.id] || stored[barber?.name] || stored[confirmedAppt?.barber_id] || stored[confirmedAppt?.barber_name];
+                      } catch {}
+                    }
+                    let est = { phone: '', name: 'Atelier Barber' };
+                    try {
+                      est = JSON.parse(localStorage.getItem('barber_establishment_whatsapp') || '{"phone":"","name":"Atelier Barber"}');
+                    } catch {}
+
+                    return (
+                      <>
+                        {bPhone && (
+                          <a
+                            href={getWhatsAppUrlForBarber(confirmedAppt, bPhone)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="payment-wa-btn barber"
+                            title={`Enviar comprovante para o WhatsApp de ${confirmedAppt?.barber_name}`}
+                          >
+                            <MessageCircle size={15}/>
+                            <span>Avisar {confirmedAppt?.barber_name || 'Barbeiro'}</span>
+                          </a>
+                        )}
+                        {est.phone && (
+                          <a
+                            href={getWhatsAppUrlForEstablishment(confirmedAppt, est.phone, est.name)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="payment-wa-btn establishment"
+                            title="Enviar comprovante para a Barbearia"
+                          >
+                            <Send size={15}/>
+                            <span>Avisar Recepção</span>
+                          </a>
+                        )}
+                        <a
+                          href={getWhatsAppUrlForClient(confirmedAppt, '')}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="payment-wa-btn client"
+                          title="Salvar comprovante no seu WhatsApp"
+                        >
+                          <Copy size={15}/>
+                          <span>Salvar no meu WhatsApp</span>
+                        </a>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
 
