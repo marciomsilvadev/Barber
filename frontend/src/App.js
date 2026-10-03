@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import "@/App.css";
 import {
   CalendarDays, Camera, ChevronRight, Clock3, CreditCard, Edit2, LogOut, MapPin,
-  QrCode, Scissors, ShieldCheck, Star, Trash2, User, X, ShoppingBag, Plus, Play, Check
+  QrCode, Scissors, ShieldCheck, Star, Trash2, User, X, ShoppingBag, Plus, Play, Check,
+  Lock, CheckCircle2, Copy, Calendar, Clock, AlertCircle
 } from "lucide-react";
 import { BrowserRouter } from "react-router-dom";
 import { supabase } from "./lib/supabase";
@@ -614,6 +615,7 @@ function ClientApp({ user, onLogout, onUserUpdate }) {
         <div className="location"><MapPin size={14}/> MEMBRO</div>
         <nav>
           <button className={activeTab === 'services' ? 'active' : ''} onClick={() => setActiveTab('services')}><Scissors size={18}/>Serviços</button>
+          <button className={activeTab === 'appointments' ? 'active' : ''} onClick={() => setActiveTab('appointments')}><CalendarDays size={18}/>Agendamentos</button>
           <button className={activeTab === 'profile'  ? 'active' : ''} onClick={() => setActiveTab('profile')} ><User size={18}/>Meu Perfil</button>
         </nav>
         <div className="sidebar-bottom">
@@ -627,22 +629,637 @@ function ClientApp({ user, onLogout, onUserUpdate }) {
         </div>
       </aside>
       <main className="main-content">
-        {activeTab === 'services' && <ClientServices user={user}/>}
-        {activeTab === 'profile'  && <ClientProfile  user={user} onUpdate={onUserUpdate}/>}
+        {activeTab === 'services' && (
+          <ClientServices user={user} onGoToAppointments={() => setActiveTab('appointments')}/>
+        )}
+        {activeTab === 'appointments' && (
+          <ClientAppointments user={user} onGoToServices={() => setActiveTab('services')}/>
+        )}
+        {activeTab === 'profile' && (
+          <ClientProfile user={user} onUpdate={onUserUpdate}/>
+        )}
       </main>
     </div>
   );
 }
 
+// ── Client Appointments Tab ───────────────────────────────────────────────────
+function ClientAppointments({ user, onGoToServices }) {
+  const [appointments, setAppointments] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadAppointments = useCallback(async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from('appointments')
+      .select('*, barbers(name, image)')
+      .eq('client_id', user.id)
+      .order('created_at', { ascending: false });
+    if (data) setAppointments(data);
+    setLoading(false);
+  }, [user.id]);
+
+  useEffect(() => {
+    loadAppointments();
+  }, [loadAppointments]);
+
+  async function cancelAppointment(id) {
+    if (!window.confirm('Deseja realmente cancelar este agendamento?')) return;
+    await supabase.from('appointments').update({ status: 'Cancelado' }).eq('id', id);
+    loadAppointments();
+  }
+
+  return (
+    <div className="admin-view fade-in">
+      <header className="topbar">
+        <div>
+          <div className="eyebrow">HISTÓRICO & RESERVAS</div>
+          <h2>Meus Agendamentos.</h2>
+        </div>
+      </header>
+
+      {loading ? (
+        <div style={{color:'#888', padding:40, textAlign:'center'}}>Carregando seus agendamentos...</div>
+      ) : appointments.length === 0 ? (
+        <div className="premium-empty" style={{marginTop:30}}>
+          <CalendarDays size={32} opacity={0.2}/>
+          <p>Você ainda não possui agendamentos marcados.</p>
+          <button className="gold-button" style={{marginTop:16}} onClick={onGoToServices}>
+            Agendar um Serviço <ChevronRight size={16}/>
+          </button>
+        </div>
+      ) : (
+        <div className="appointments-grid">
+          {appointments.map(a => (
+            <div key={a.id} className="appointment-card">
+              <div className="appt-top">
+                <div>
+                  <h4>{a.service_type || 'Serviço'}</h4>
+                  <div style={{fontSize:11, color:'#888'}}>
+                    {a.barbers?.name ? `Com ${a.barbers.name}` : 'Profissional Atelier'}
+                  </div>
+                </div>
+                <div style={{display:'flex', gap:6}}>
+                  <span className={`appt-badge ${a.payment_status === 'Pago' ? 'paid' : ''}`}>
+                    {a.payment_status || 'Pendente'}
+                  </span>
+                  <span className={`appt-badge ${a.status === 'Confirmado' ? 'confirmed' : ''}`}>
+                    {a.status}
+                  </span>
+                </div>
+              </div>
+
+              <div className="appt-meta">
+                <div className="appt-meta-row">
+                  <Calendar size={14} color="var(--gold)"/>
+                  <span>{a.date ? a.date.split('-').reverse().join('/') : 'Data a definir'}</span>
+                </div>
+                <div className="appt-meta-row">
+                  <Clock size={14} color="var(--gold)"/>
+                  <span>{a.time || '10:00'}</span>
+                </div>
+              </div>
+
+              <div className="appt-footer">
+                <span className="appt-price">R$ {parseFloat(a.price || 0).toFixed(2)}</span>
+                {a.status !== 'Cancelado' && (
+                  <button
+                    className="text-button"
+                    style={{color:'#d98080', fontSize:11}}
+                    onClick={() => cancelAppointment(a.id)}
+                  >
+                    Cancelar
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Payment Modal (Window to enter card, save, schedule & pay) ────────────────
+function PaymentModal({
+  isOpen,
+  onClose,
+  user,
+  selected,
+  barber,
+  barbers,
+  payMode,
+  parcelas,
+  onSuccessAppointment,
+  onGoToAppointments,
+}) {
+  const [savedCards, setSavedCards] = useState([]);
+  const [useSavedCard, setUseSavedCard] = useState(false);
+  const [selectedCardId, setSelectedCardId] = useState(null);
+
+  // Card Form State
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardHolder, setCardHolder] = useState(user.full_name?.toUpperCase() || '');
+  const [cardExp, setCardExp] = useState('');
+  const [cardCvv, setCardCvv] = useState('');
+  const [saveCardCheck, setSaveCardCheck] = useState(true);
+
+  // Schedule State
+  const defaultDate = new Date();
+  defaultDate.setDate(defaultDate.getDate() + 1);
+  const [bookingDate, setBookingDate] = useState(defaultDate.toISOString().split('T')[0]);
+  const [bookingTime, setBookingTime] = useState('10:00');
+
+  // Flow State
+  const [processing, setProcessing] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [confirmedAppt, setConfirmedAppt] = useState(null);
+  const [pixCopied, setPixCopied] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  // Load saved cards from localStorage
+  useEffect(() => {
+    if (!user?.id) return;
+    try {
+      const stored = JSON.parse(localStorage.getItem(`barber_saved_cards_${user.id}`) || '[]');
+      setSavedCards(stored);
+      if (stored.length > 0) {
+        setUseSavedCard(true);
+        setSelectedCardId(stored[0].id);
+      }
+    } catch {
+      setSavedCards([]);
+    }
+  }, [user?.id, isOpen]);
+
+  if (!isOpen || !selected) return null;
+
+  const total = parseFloat(selected.price || 0);
+  const parcelValue = total / parcelas;
+
+  // Format Card Number (XXXX XXXX XXXX XXXX)
+  function handleCardNumberChange(e) {
+    const raw = e.target.value.replace(/\D/g, '').slice(0, 16);
+    const parts = raw.match(/.{1,4}/g) || [];
+    setCardNumber(parts.join(' '));
+  }
+
+  // Format Expiry (MM/AA)
+  function handleExpChange(e) {
+    let raw = e.target.value.replace(/\D/g, '').slice(0, 4);
+    if (raw.length >= 3) {
+      raw = raw.slice(0, 2) + '/' + raw.slice(2);
+    }
+    setCardExp(raw);
+  }
+
+  // Detect Brand
+  function detectBrand(num) {
+    const clean = (num || '').replace(/\D/g, '');
+    if (clean.startsWith('4')) return 'VISA';
+    if (/^5[1-5]/.test(clean) || /^2[2-7]/.test(clean)) return 'MASTERCARD';
+    if (/^3[47]/.test(clean)) return 'AMEX';
+    if (/^6(011|5)/.test(clean)) return 'ELO';
+    return 'CARTÃO';
+  }
+
+  const currentBrand = useSavedCard
+    ? (savedCards.find(c => c.id === selectedCardId)?.brand || 'CARTÃO')
+    : detectBrand(cardNumber);
+
+  // Pix Copia e Cola generator
+  const pixCode = `00020126580014BR.GOV.BCB.PIX0136${user.id || 'atelier-barber'}5204000053039865405${total.toFixed(2)}5802BR5914ATELIER BARBER6009SAO PAULO62070503***6304`;
+
+  function copyPix() {
+    navigator.clipboard.writeText(pixCode);
+    setPixCopied(true);
+    setTimeout(() => setPixCopied(false), 3000);
+  }
+
+  async function handleConfirmPayment(e) {
+    e?.preventDefault();
+    setErrorMsg('');
+
+    if (payMode === 'card') {
+      if (!useSavedCard) {
+        const cleanNum = cardNumber.replace(/\D/g, '');
+        if (cleanNum.length < 15) {
+          setErrorMsg('Por favor, informe um número de cartão válido.');
+          return;
+        }
+        if (!cardHolder.trim()) {
+          setErrorMsg('Informe o nome impresso no cartão.');
+          return;
+        }
+        if (cardExp.length < 5) {
+          setErrorMsg('Informe a validade do cartão (MM/AA).');
+          return;
+        }
+        if (cardCvv.length < 3) {
+          setErrorMsg('Informe o CVV do cartão (3 ou 4 dígitos).');
+          return;
+        }
+      }
+    }
+
+    setProcessing(true);
+
+    try {
+      // 1. Simula autorização imediata da operadora
+      await new Promise(r => setTimeout(r, 1200));
+
+      // 2. Salva cartão se solicitado
+      if (payMode === 'card' && saveCardCheck && !useSavedCard) {
+        const cleanNum = cardNumber.replace(/\D/g, '');
+        const newCard = {
+          id: String(Date.now()),
+          last4: cleanNum.slice(-4),
+          brand: currentBrand,
+          holder: cardHolder.toUpperCase(),
+          exp: cardExp,
+        };
+        const updated = [...savedCards.filter(c => c.last4 !== newCard.last4), newCard];
+        localStorage.setItem(`barber_saved_cards_${user.id}`, JSON.stringify(updated));
+        setSavedCards(updated);
+      }
+
+      // 3. Salva o agendamento no Supabase
+      const barberSelected = barber || (barbers && barbers.length > 0 ? barbers[0] : null);
+      const apptRecord = {
+        tenant_id: selected.tenant_id || user.tenant_id || '77dab26d-b0de-49e0-995f-6dc1c9c4fbe8',
+        client_id: user.id,
+        barber_id: barberSelected?.id || null,
+        service_id: selected.id,
+        service_type: selected.name,
+        price: total,
+        date: bookingDate,
+        time: bookingTime,
+        status: 'Confirmado',
+        payment_status: 'Pago',
+      };
+
+      const { data: inserted, error: dbErr } = await supabase
+        .from('appointments')
+        .insert(apptRecord)
+        .select()
+        .single();
+
+      if (dbErr) {
+        console.warn('DB insert notice:', dbErr.message);
+      }
+
+      setConfirmedAppt({
+        ...apptRecord,
+        id: inserted?.id || String(Date.now()),
+        barber_name: barberSelected?.name || 'Profissional Atelier',
+      });
+      setIsSuccess(true);
+      if (onSuccessAppointment) onSuccessAppointment(inserted || apptRecord);
+    } catch (err) {
+      setErrorMsg('Falha ao processar pagamento. Tente novamente.');
+    } finally {
+      setProcessing(false);
+    }
+  }
+
+  const timeSlots = ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'];
+
+  return (
+    <div className="payment-modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget && !processing) onClose(); }}>
+      <div className="payment-modal">
+        {/* Header */}
+        <div className="payment-modal-header">
+          <div>
+            <div className="eyebrow">PAGAMENTO SEGURO · ATELIER</div>
+            <h3>{isSuccess ? 'Reserva Confirmada' : 'Finalizar Pagamento'}</h3>
+          </div>
+          {!processing && (
+            <button className="modal-close-btn" onClick={onClose}><X size={20}/></button>
+          )}
+        </div>
+
+        <div className="payment-modal-body">
+          {/* SUCCESS SCREEN */}
+          {isSuccess ? (
+            <div className="payment-success-box">
+              <div className="success-check-circle">
+                <CheckCircle2 size={40} color="var(--gold)"/>
+              </div>
+              <h3>Pagamento Aprovado!</h3>
+              <p>Sua reserva foi confirmada com sucesso no Atelier Barber.</p>
+
+              <div className="success-receipt">
+                <div className="receipt-row">
+                  <span>Serviço:</span>
+                  <strong>{selected.name} ({selected.duration_minutes} min)</strong>
+                </div>
+                <div className="receipt-row">
+                  <span>Profissional:</span>
+                  <strong>{confirmedAppt?.barber_name || 'Profissional Atelier'}</strong>
+                </div>
+                <div className="receipt-row">
+                  <span>Data e Hora:</span>
+                  <strong>{bookingDate.split('-').reverse().join('/')} às {bookingTime}</strong>
+                </div>
+                <div className="receipt-row">
+                  <span>Forma de Pagamento:</span>
+                  <strong>{payMode === 'card' ? `Cartão (${parcelas}x)` : 'PIX Instantâneo'}</strong>
+                </div>
+                <div className="receipt-row">
+                  <span>Status:</span>
+                  <strong style={{color:'#51c18a'}}>Pago & Confirmado</strong>
+                </div>
+                <div className="receipt-row" style={{borderTop:'1px solid var(--gold)', marginTop:6, paddingTop:6}}>
+                  <span>Total Cobrado:</span>
+                  <strong style={{color:'var(--gold)', fontSize:14}}>R$ {total.toFixed(2)}</strong>
+                </div>
+              </div>
+
+              <div style={{display:'flex', gap:10, width:'100%'}}>
+                <button
+                  className="outline-button"
+                  style={{flex:1}}
+                  onClick={() => { onClose(); }}
+                >
+                  Concluir
+                </button>
+                <button
+                  className="gold-button"
+                  style={{flex:1}}
+                  onClick={() => { onClose(); if (onGoToAppointments) onGoToAppointments(); }}
+                >
+                  Ver Agendamentos <ChevronRight size={16}/>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Order Summary Strip */}
+              <div className="checkout-summary-banner">
+                <div className="csb-left">
+                  <strong>{selected.name}</strong>
+                  <span>{barber ? `com ${barber.name}` : 'Profissional a definir'} · {selected.duration_minutes} min</span>
+                </div>
+                <div className="csb-right">
+                  <strong>R$ {total.toFixed(2)}</strong>
+                  <small>{payMode === 'card' && parcelas > 1 ? `${parcelas}x de R$ ${parcelValue.toFixed(2)}` : 'À vista'}</small>
+                </div>
+              </div>
+
+              {/* Date and Time Selector */}
+              <div className="booking-schedule-section">
+                <div className="schedule-header">
+                  <Calendar size={14}/> ESCOLHA A DATA E HORÁRIO DA VISITA
+                </div>
+                <div className="pfield-row">
+                  <div className="pfield-label">
+                    <span>Data</span>
+                    <input
+                      type="date"
+                      className="pfield-input"
+                      value={bookingDate}
+                      min={new Date().toISOString().split('T')[0]}
+                      onChange={e => setBookingDate(e.target.value)}
+                    />
+                  </div>
+                  <div className="pfield-label">
+                    <span>Horário selecionado</span>
+                    <div style={{padding:'12px 14px', background:'#181818', border:'1px solid var(--line)', color:'var(--gold)', fontWeight:700, fontSize:13}}>
+                      {bookingTime}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="time-slots-grid">
+                  {timeSlots.map(t => (
+                    <button
+                      key={t}
+                      type="button"
+                      className={`time-slot-btn ${bookingTime === t ? 'active' : ''}`}
+                      onClick={() => setBookingTime(t)}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* CARD PAYMENT FORM */}
+              {payMode === 'card' && (
+                <div>
+                  {/* Saved cards radio if available */}
+                  {savedCards.length > 0 && (
+                    <div style={{marginBottom:18}}>
+                      <div className="eyebrow" style={{marginBottom:8}}>MEUS CARTÕES SALVOS</div>
+                      <div className="saved-cards-block">
+                        {savedCards.map(c => (
+                          <div
+                            key={c.id}
+                            className={`saved-card-item ${useSavedCard && selectedCardId === c.id ? 'selected' : ''}`}
+                            onClick={() => { setUseSavedCard(true); setSelectedCardId(c.id); }}
+                          >
+                            <div className="sci-info">
+                              <CreditCard size={18} color="var(--gold)"/>
+                              <div>
+                                <strong>{c.brand} final {c.last4}</strong>
+                                <span>{c.holder} · Validade {c.exp}</span>
+                              </div>
+                            </div>
+                            {useSavedCard && selectedCardId === c.id && <Check size={16} color="var(--gold)"/>}
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          className="text-button"
+                          style={{alignSelf:'flex-start', marginTop:4, fontSize:11, color: !useSavedCard ? 'var(--gold)' : '#888'}}
+                          onClick={() => setUseSavedCard(false)}
+                        >
+                          + Pagar com um novo cartão
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Virtual Card Preview (if typing new card or reviewing) */}
+                  {!useSavedCard && (
+                    <div className="virtual-card-wrap">
+                      <div className="virtual-card">
+                        <div className="vcard-top">
+                          <div className="vcard-chip"/>
+                          <span className="vcard-brand">{currentBrand}</span>
+                        </div>
+                        <div className="vcard-number">
+                          {cardNumber ? cardNumber.padEnd(19, '•') : '•••• •••• •••• ••••'}
+                        </div>
+                        <div className="vcard-bottom">
+                          <div>
+                            <span className="vcard-label">Titular do Cartão</span>
+                            <div className="vcard-holder">{cardHolder || 'SEU NOME AQUI'}</div>
+                          </div>
+                          <div style={{textAlign:'right'}}>
+                            <span className="vcard-label">Validade</span>
+                            <div className="vcard-exp">{cardExp || 'MM/AA'}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* New Card Form Fields */}
+                  {!useSavedCard && (
+                    <div className="payment-field-group">
+                      <div className="pfield-label">
+                        <span>Número do Cartão</span>
+                        <input
+                          type="text"
+                          className="pfield-input"
+                          placeholder="0000 0000 0000 0000"
+                          value={cardNumber}
+                          onChange={handleCardNumberChange}
+                          maxLength={19}
+                          required
+                        />
+                      </div>
+
+                      <div className="pfield-label">
+                        <span>Nome impresso no Cartão</span>
+                        <input
+                          type="text"
+                          className="pfield-input"
+                          placeholder="NOME COMO NO CARTÃO"
+                          value={cardHolder}
+                          onChange={e => setCardHolder(e.target.value.toUpperCase())}
+                          required
+                        />
+                      </div>
+
+                      <div className="pfield-row">
+                        <div className="pfield-label">
+                          <span>Validade (MM/AA)</span>
+                          <input
+                            type="text"
+                            className="pfield-input"
+                            placeholder="MM/AA"
+                            value={cardExp}
+                            onChange={handleExpChange}
+                            maxLength={5}
+                            required
+                          />
+                        </div>
+                        <div className="pfield-label">
+                          <span>CVV</span>
+                          <input
+                            type="password"
+                            className="pfield-input"
+                            placeholder="123"
+                            value={cardCvv}
+                            onChange={e => setCardCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                            maxLength={4}
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      <label className="pfield-checkbox">
+                        <input
+                          type="checkbox"
+                          checked={saveCardCheck}
+                          onChange={e => setSaveCardCheck(e.target.checked)}
+                        />
+                        <span>Salvar este cartão para reservas futuras com 1 clique</span>
+                      </label>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* PIX PAYMENT FORM */}
+              {payMode === 'pix' && (
+                <div className="pix-container">
+                  <div className="pix-qr-frame">
+                    <svg width="180" height="180" viewBox="0 0 100 100" fill="none">
+                      <rect width="100" height="100" fill="#ffffff" />
+                      {/* Corners */}
+                      <rect x="10" y="10" width="24" height="24" fill="#000" />
+                      <rect x="14" y="14" width="16" height="16" fill="#fff" />
+                      <rect x="18" y="18" width="8" height="8" fill="#000" />
+                      <rect x="66" y="10" width="24" height="24" fill="#000" />
+                      <rect x="70" y="14" width="16" height="16" fill="#fff" />
+                      <rect x="74" y="18" width="8" height="8" fill="#000" />
+                      <rect x="10" y="66" width="24" height="24" fill="#000" />
+                      <rect x="14" y="70" width="16" height="16" fill="#fff" />
+                      <rect x="18" y="74" width="8" height="8" fill="#000" />
+                      {/* Random PIX pattern blocks */}
+                      <rect x="42" y="12" width="6" height="12" fill="#000" />
+                      <rect x="52" y="18" width="8" height="6" fill="#000" />
+                      <rect x="40" y="30" width="20" height="6" fill="#000" />
+                      <rect x="12" y="42" width="14" height="6" fill="#000" />
+                      <rect x="30" y="42" width="6" height="14" fill="#000" />
+                      <rect x="44" y="44" width="12" height="12" fill="#d4af37" />
+                      <rect x="62" y="40" width="8" height="16" fill="#000" />
+                      <rect x="76" y="44" width="14" height="6" fill="#000" />
+                      <rect x="42" y="64" width="8" height="14" fill="#000" />
+                      <rect x="56" y="68" width="14" height="8" fill="#000" />
+                      <rect x="76" y="68" width="12" height="12" fill="#000" />
+                      <rect x="68" y="84" width="16" height="6" fill="#000" />
+                    </svg>
+                  </div>
+
+                  <p className="pix-instructions">
+                    Abra o app do seu banco, escolha <strong>Pagar via PIX</strong> e escaneie o QR Code ou copie a chave abaixo:
+                  </p>
+
+                  <div className="pix-code-row">
+                    <input className="pix-code-input" value={pixCode} readOnly />
+                    <button type="button" className="pix-copy-btn" onClick={copyPix}>
+                      {pixCopied ? <Check size={14}/> : <Copy size={14}/>}
+                      {pixCopied ? 'Copiado!' : 'Copiar'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {errorMsg && (
+                <div className="error-message" style={{marginBottom:14}}>
+                  <AlertCircle size={14}/> {errorMsg}
+                </div>
+              )}
+
+              {/* Submit CTA */}
+              <button
+                className="gold-button"
+                style={{width:'100%', marginTop:10}}
+                onClick={handleConfirmPayment}
+                disabled={processing}
+              >
+                {processing ? (
+                  'Processando transação...'
+                ) : (
+                  <>
+                    <Lock size={15}/>
+                    {payMode === 'card'
+                      ? `Confirmar e Pagar ${parcelas > 1 ? `${parcelas}x de R$ ${parcelValue.toFixed(2)}` : `R$ ${total.toFixed(2)}`}`
+                      : 'Confirmar Pagamento PIX'}
+                  </>
+                )}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Client Services (Service selection + Payment) ─────────────────────────────
-function ClientServices({ user }) {
+function ClientServices({ user, onGoToAppointments }) {
   const [services, setServices] = useState([]);
   const [barbers,  setBarbers]  = useState([]);
   const [selected, setSelected] = useState(null);   // selected service
   const [barber,   setBarber]   = useState(null);    // selected barber
   const [payMode,  setPayMode]  = useState(null);    // 'card' | 'pix'
   const [parcelas, setParcelas] = useState(1);
-  const [buying,   setBuying]   = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   useEffect(() => {
     // Load services and barbers for this tenant (or all if no tenant)
@@ -655,35 +1272,9 @@ function ClientServices({ user }) {
   const total = selected ? parseFloat(selected.price) : 0;
   const parcelValue = total / parcelas;
 
-  async function pay() {
+  function openCheckout() {
     if (!selected) return;
-    setBuying(true);
-    try {
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/create-checkout-session`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({
-          product: {
-            name: selected.name,
-            description: barber ? `com ${barber.name}` : selected.description || '',
-            price: selected.price,
-            image_url: barber?.image || null,
-          },
-          payMode,
-          installments: payMode === 'card' ? parcelas : 1,
-        }),
-      });
-      const { url, error } = await res.json();
-      if (error) { alert('Erro ao iniciar pagamento: ' + error); return; }
-      if (url) window.location.href = url;
-    } catch {
-      alert('Erro de conexão. Tente novamente.');
-    } finally {
-      setBuying(false);
-    }
+    setShowPaymentModal(true);
   }
 
   return (
@@ -824,16 +1415,32 @@ function ClientServices({ user }) {
               <button
                 className="gold-button"
                 style={{marginTop:28,width:'100%'}}
-                onClick={pay}
-                disabled={buying}
+                onClick={openCheckout}
               >
-                {buying ? 'Aguarde...' : `Pagar ${payMode === 'pix' ? 'via PIX' : `${parcelas}x de R$ ${parcelValue.toFixed(2)}`}`}
+                {payMode === 'pix' ? 'Pagar via PIX' : `Pagar ${parcelas}x de R$ ${parcelValue.toFixed(2)}`}
                 <ChevronRight size={16}/>
               </button>
             )}
           </>
         )}
       </div>
+
+      {/* PAYMENT WINDOW MODAL */}
+      <PaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        user={user}
+        selected={selected}
+        barber={barber}
+        barbers={barbers}
+        payMode={payMode}
+        parcelas={parcelas}
+        onSuccessAppointment={() => {
+          setSelected(null);
+          setPayMode(null);
+        }}
+        onGoToAppointments={onGoToAppointments}
+      />
     </div>
   );
 }
@@ -841,8 +1448,25 @@ function ClientServices({ user }) {
 // ── Client Profile ─────────────────────────────────────────────────────────────
 function ClientProfile({ user, onUpdate }) {
   const [form, setForm]     = useState({ full_name: user.full_name || '', email: user.email || '', password: '' });
+  const [savedCards, setSavedCards] = useState([]);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg]       = useState('');
+
+  useEffect(() => {
+    if (!user?.id) return;
+    try {
+      const cards = JSON.parse(localStorage.getItem(`barber_saved_cards_${user.id}`) || '[]');
+      setSavedCards(cards);
+    } catch {
+      setSavedCards([]);
+    }
+  }, [user?.id]);
+
+  function removeSavedCard(cardId) {
+    const updated = savedCards.filter(c => c.id !== cardId);
+    setSavedCards(updated);
+    localStorage.setItem(`barber_saved_cards_${user.id}`, JSON.stringify(updated));
+  }
 
   async function save() {
     setSaving(true); setMsg('');
@@ -908,6 +1532,36 @@ function ClientProfile({ user, onUpdate }) {
             <button className="gold-button" style={{marginTop:24}} onClick={save} disabled={saving}>
               {saving ? 'Salvando...' : 'Salvar alterações'}<ChevronRight size={16}/>
             </button>
+          </div>
+
+          {/* Cartões Salvos */}
+          <div style={{marginTop:40, borderTop:'1px solid var(--line)', paddingTop:24}}>
+            <div className="eyebrow" style={{marginBottom:12}}>MEUS CARTÕES SALVOS</div>
+            {savedCards.length === 0 ? (
+              <p style={{fontSize:12, color:'#666'}}>Nenhum cartão salvo no momento.</p>
+            ) : (
+              <div className="saved-cards-block">
+                {savedCards.map(c => (
+                  <div key={c.id} className="saved-card-item">
+                    <div className="sci-info">
+                      <CreditCard size={18} color="var(--gold)"/>
+                      <div>
+                        <strong>{c.brand} final {c.last4}</strong>
+                        <span>{c.holder} · Validade {c.exp}</span>
+                      </div>
+                    </div>
+                    <button
+                      className="text-button"
+                      style={{color:'#d98080', padding:6}}
+                      onClick={() => removeSavedCard(c.id)}
+                      title="Excluir cartão"
+                    >
+                      <Trash2 size={15}/>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

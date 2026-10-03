@@ -250,8 +250,524 @@
 /* buy button on product card */
 .buy-btn { margin-top:12px; width:100%; }
 
+/* ── Payment Modal & Checkout Window ────────────────────────────────────── */
+.payment-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(10px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.payment-modal {
+  background: #111111;
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  box-shadow: 0 20px 50px rgba(0,0,0,0.8), 0 0 40px rgba(212, 175, 55, 0.08);
+  width: 100%;
+  max-width: 560px;
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+  animation: modalEnter 0.25s ease-out;
+}
+
+@keyframes modalEnter {
+  from { opacity: 0; transform: scale(0.96) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.payment-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 24px 28px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.payment-modal-header h3 {
+  font-family: 'Playfair Display', serif;
+  font-size: 20px;
+  color: var(--white);
+  margin: 4px 0 0;
+}
+
+.modal-close-btn {
+  background: transparent;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.2s, transform 0.2s;
+}
+.modal-close-btn:hover { color: var(--gold); transform: scale(1.1); }
+
+.payment-modal-body {
+  padding: 24px 28px 28px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+/* Order Summary Banner */
+.checkout-summary-banner {
+  background: #161616;
+  border: 1px solid var(--line);
+  padding: 14px 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+.csb-left strong { display: block; font-size: 14px; color: var(--white); }
+.csb-left span { font-size: 11px; color: #888; }
+.csb-right { text-align: right; }
+.csb-right strong { font-family: 'Playfair Display', serif; font-size: 18px; color: var(--gold); display: block; }
+.csb-right small { font-size: 10px; color: #888; }
+
+/* Interactive Virtual Credit Card */
+.virtual-card-wrap {
+  perspective: 1000px;
+  margin-bottom: 24px;
+}
+
+.virtual-card {
+  background: linear-gradient(135deg, #1f1b14 0%, #0f0e0c 45%, #2a2211 100%);
+  border: 1px solid rgba(212, 175, 55, 0.45);
+  border-radius: 12px;
+  padding: 22px 26px;
+  box-shadow: 0 14px 30px rgba(0,0,0,0.6), inset 0 0 25px rgba(212, 175, 55, 0.05);
+  position: relative;
+  overflow: hidden;
+  color: #fff;
+  transition: transform 0.3s ease;
+}
+
+.virtual-card::before {
+  content: '';
+  position: absolute;
+  top: -40px; right: -40px;
+  width: 140px; height: 140px;
+  background: radial-gradient(circle, rgba(212, 175, 55, 0.15) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.vcard-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 22px;
+}
+
+.vcard-chip {
+  width: 38px;
+  height: 28px;
+  background: linear-gradient(135deg, #d4af37 0%, #aa8529 100%);
+  border-radius: 4px;
+  position: relative;
+  border: 1px solid #7d601a;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+.vcard-chip::after {
+  content: '';
+  position: absolute;
+  inset: 4px 6px;
+  border: 1px solid rgba(0,0,0,0.25);
+  border-radius: 2px;
+}
+
+.vcard-brand {
+  font-family: 'Playfair Display', serif;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--gold);
+}
+
+.vcard-number {
+  font-family: 'Courier New', monospace;
+  font-size: 18px;
+  letter-spacing: 3px;
+  color: #f0f0f0;
+  margin-bottom: 20px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+}
+
+.vcard-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.vcard-label {
+  font-size: 8px;
+  text-transform: uppercase;
+  color: #999;
+  letter-spacing: 1px;
+  display: block;
+  margin-bottom: 2px;
+}
+
+.vcard-holder {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #eaeaea;
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vcard-exp {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: #eaeaea;
+}
+
+/* Card Form Inputs */
+.payment-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.pfield-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.pfield-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #aaa;
+}
+
+.pfield-input {
+  background: #181818;
+  border: 1px solid var(--line);
+  color: #fff;
+  padding: 12px 14px;
+  font-size: 13px;
+  border-radius: 2px;
+  outline: none;
+  transition: border-color 0.2s, background 0.2s;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.pfield-input:focus {
+  border-color: var(--gold);
+  background: #202020;
+}
+
+.pfield-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: #bbb;
+  cursor: pointer;
+  margin: 6px 0 16px;
+  user-select: none;
+}
+.pfield-checkbox input { accent-color: var(--gold); width: 16px; height: 16px; cursor: pointer; }
+
+/* Date & Time selection in checkout */
+.booking-schedule-section {
+  background: #151515;
+  border: 1px solid var(--line);
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.schedule-header {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--gold);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.time-slots-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.time-slot-btn {
+  background: #1e1e1e;
+  border: 1px solid var(--line);
+  color: #ccc;
+  padding: 8px 4px;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.2s;
+}
+.time-slot-btn:hover { border-color: var(--gold-soft); color: #fff; }
+.time-slot-btn.active {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: #000;
+  font-weight: 700;
+}
+
+/* PIX Box */
+.pix-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 10px 0 20px;
+}
+
+.pix-qr-frame {
+  background: #fff;
+  padding: 16px;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  margin-bottom: 16px;
+}
+
+.pix-instructions {
+  font-size: 12px;
+  color: #aaa;
+  margin-bottom: 16px;
+  line-height: 1.6;
+}
+
+.pix-code-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 16px;
+}
+
+.pix-code-input {
+  background: #161616;
+  border: 1px solid var(--line);
+  color: #888;
+  font-size: 11px;
+  padding: 10px 12px;
+  border-radius: 2px;
+  flex: 1;
+  font-family: monospace;
+}
+
+.pix-copy-btn {
+  background: #252525;
+  border: 1px solid var(--line);
+  color: var(--gold);
+  padding: 0 16px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.2s, border-color 0.2s;
+  white-space: nowrap;
+}
+.pix-copy-btn:hover { background: #333; border-color: var(--gold); }
+
+/* Success Screen */
+.payment-success-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 20px 0;
+  animation: modalEnter 0.3s ease-out;
+}
+
+.success-check-circle {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: rgba(212, 175, 55, 0.15);
+  border: 2px solid var(--gold);
+  color: var(--gold);
+  display: grid;
+  place-items: center;
+  margin-bottom: 20px;
+  animation: pulseGold 2s infinite;
+}
+
+@keyframes pulseGold {
+  0% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.4); }
+  70% { box-shadow: 0 0 0 14px rgba(212, 175, 55, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0); }
+}
+
+.payment-success-box h3 {
+  font-family: 'Playfair Display', serif;
+  font-size: 24px;
+  color: var(--white);
+  margin: 0 0 8px;
+}
+
+.payment-success-box p {
+  color: #aaa;
+  font-size: 13px;
+  max-width: 380px;
+  margin: 0 0 24px;
+}
+
+.success-receipt {
+  background: #161616;
+  border: 1px solid var(--line);
+  width: 100%;
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  text-align: left;
+}
+
+.receipt-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.receipt-row:last-child { border-bottom: none; }
+.receipt-row span { color: #888; }
+.receipt-row strong { color: #fff; }
+
+/* Saved Cards in Profile & Modal */
+.saved-cards-block {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.saved-card-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #181818;
+  border: 1px solid var(--line);
+  padding: 12px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.saved-card-item:hover { border-color: var(--gold-soft); }
+.saved-card-item.selected {
+  border-color: var(--gold);
+  background: #201c10;
+}
+.sci-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.sci-info strong { font-size: 13px; color: #fff; display: block; }
+.sci-info span { font-size: 10px; color: #888; }
+
+/* Appointments Tab */
+.appointments-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 18px;
+  margin-top: 20px;
+}
+
+.appointment-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  position: relative;
+  transition: border-color 0.2s, transform 0.2s;
+}
+.appointment-card:hover {
+  border-color: rgba(212, 175, 55, 0.4);
+  transform: translateY(-2px);
+}
+
+.appt-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.appt-top h4 {
+  font-family: 'Playfair Display', serif;
+  font-size: 18px;
+  color: #fff;
+  margin: 0 0 4px;
+}
+.appt-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 4px 8px;
+  border-radius: 2px;
+}
+.appt-badge.paid {
+  background: rgba(81, 193, 138, 0.15);
+  border: 1px solid #51c18a;
+  color: #51c18a;
+}
+.appt-badge.confirmed {
+  background: rgba(212, 175, 55, 0.15);
+  border: 1px solid var(--gold);
+  color: var(--gold);
+}
+
+.appt-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+  color: #aaa;
+}
+.appt-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.appt-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+  margin-top: 4px;
+}
+.appt-price {
+  font-family: 'Playfair Display', serif;
+  font-size: 16px;
+  color: var(--gold);
+  font-weight: 600;
+}
+
 @media (max-width:900px) {
   .client-layout { grid-template-columns:1fr; }
   .client-order-panel { min-height:auto; position:static; }
   .profile-edit-layout { grid-template-columns:1fr; }
+  .time-slots-grid { grid-template-columns: repeat(3, 1fr); }
+  .pfield-row { grid-template-columns: 1fr; }
 }
+
