@@ -1888,11 +1888,17 @@ function ImageUploadField({ label, value, onChange }) {
 function Modal({ title, onClose, children }) {
   return (
     <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal admin-modal fade-in">
-        <button className="close-button" onClick={onClose}><X size={18} /></button>
-        <div className="eyebrow">ATELIER BARBER</div>
-        <h2>{title}</h2>
-        {children}
+      <div className="modal admin-modal fade-in" role="dialog" aria-modal="true">
+        <div className="modal-header-sticky">
+          <div>
+            <div className="eyebrow">ATELIER BARBER</div>
+            <h2>{title}</h2>
+          </div>
+          <button className="close-button" onClick={onClose} type="button" aria-label="Fechar modal"><X size={18} /></button>
+        </div>
+        <div className="modal-body-scroll">
+          {children}
+        </div>
       </div>
     </div>
   );
