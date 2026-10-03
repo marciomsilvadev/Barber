@@ -31,16 +31,11 @@ function Login({ onLogin, callbackError = "", initialMode = "login" }) {
     e.preventDefault(); setError("");
     try {
       if (mode === "register") {
-        const { data, error: err } = await supabase.auth.signUp({
+        const { error: err } = await supabase.auth.signUp({
           email: form.email, password: form.password,
           options: { data: { full_name: form.name } }
         });
         if (err) throw err;
-        if (data.user) {
-           await supabase.from("user_profiles").insert({
-             id: data.user.id, full_name: form.name, role: "client"
-           });
-        }
         alert("Conta criada! Você já pode entrar.");
         setMode("login");
       } else {
