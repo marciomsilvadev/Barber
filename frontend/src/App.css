@@ -815,11 +815,378 @@
   font-weight: 600;
 }
 
+/* ── Admin Appointments & Cash Flow Styles ───────────────────────────────── */
+.nav-badge-gold {
+  background: var(--gold);
+  color: var(--black);
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 12px;
+  margin-left: auto;
+}
+
+/* Live Notification Banner */
+.admin-live-banner {
+  background: linear-gradient(90deg, #1f1b0a 0%, #161510 100%);
+  border: 1px solid var(--gold);
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 8px 30px rgba(212, 175, 55, 0.2);
+  animation: slideDown 0.3s ease;
+}
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.alb-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.alb-icon-pulse {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--gold);
+  display: grid;
+  place-items: center;
+  box-shadow: 0 0 15px rgba(212, 175, 55, 0.6);
+  flex: none;
+}
+.alb-left strong {
+  display: block;
+  font-size: 13px;
+  color: var(--gold);
+  margin-bottom: 2px;
+}
+.alb-left p {
+  color: #ccc;
+  font-size: 12px;
+  margin: 0;
+  line-height: 1.4;
+}
+.alb-close-btn {
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  padding: 6px;
+  transition: color 0.2s;
+}
+.alb-close-btn:hover { color: #fff; }
+
+/* Admin KPI Grid */
+.admin-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 18px;
+  margin-bottom: 10px;
+}
+.admin-kpi-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  padding: 22px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  transition: transform 0.2s, border-color 0.2s;
+}
+.admin-kpi-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--gold-soft);
+}
+.admin-kpi-card.gold-border {
+  border-color: var(--gold);
+  background: linear-gradient(145deg, #171714 0%, #111110 100%);
+}
+.kpi-icon-wrap {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  background: #181816;
+  border: 1px solid var(--line);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.kpi-label {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: #888;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.kpi-value {
+  display: block;
+  font-family: 'Playfair Display', serif;
+  font-size: 26px;
+  color: var(--white);
+  font-weight: 600;
+  line-height: 1.1;
+}
+.kpi-card.gold-border .kpi-value { color: var(--gold); }
+.kpi-sub {
+  display: block;
+  font-size: 11px;
+  color: #666;
+  margin-top: 4px;
+}
+
+/* Admin Toolbar & Search */
+.admin-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.admin-search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #121212;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 6px 14px;
+  width: 320px;
+  max-width: 100%;
+}
+.admin-search-box input {
+  background: none;
+  border: none;
+  outline: none;
+  color: #fff;
+  font-size: 12px;
+  width: 100%;
+}
+.search-clear {
+  background: none;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+}
+.search-clear:hover { color: #fff; }
+
+/* Admin Appointments Cards List */
+.admin-appt-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.admin-appt-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px 20px;
+  display: grid;
+  grid-template-columns: 100px 1.4fr 1.2fr 130px 100px auto;
+  align-items: center;
+  gap: 16px;
+  transition: all 0.2s;
+}
+.admin-appt-card:hover {
+  background: #181818;
+  border-color: #333;
+}
+.admin-appt-card.is-today {
+  border-left: 3px solid var(--gold);
+}
+
+.aac-date-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.today-badge {
+  background: var(--gold);
+  color: #000;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-bottom: 2px;
+}
+.aac-time {
+  font-size: 16px;
+  font-family: 'Playfair Display', serif;
+  color: var(--white);
+  font-weight: 600;
+}
+.aac-date {
+  font-size: 10px;
+  color: #888;
+}
+
+.aac-client-col {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.aac-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #222;
+  border: 1px solid var(--gold-soft);
+  color: var(--gold);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 14px;
+  flex: none;
+}
+.aac-client-name {
+  display: block;
+  font-size: 13px;
+  color: #eee;
+  font-weight: 600;
+}
+.aac-client-email {
+  display: block;
+  font-size: 11px;
+  color: #666;
+}
+
+.aac-service-col strong {
+  display: block;
+  font-size: 13px;
+  color: var(--white);
+}
+.aac-service-col span {
+  display: block;
+  font-size: 11px;
+  color: #888;
+  margin-top: 2px;
+}
+
+.aac-payment-col {
+  text-align: right;
+}
+.aac-price {
+  font-family: 'Playfair Display', serif;
+  font-size: 16px;
+  color: var(--gold);
+  font-weight: 700;
+}
+.payment-method-tag {
+  font-size: 9px;
+  color: #888;
+  border: 1px solid #2a2a2a;
+  padding: 2px 5px;
+  border-radius: 4px;
+}
+
+.aac-status-col {
+  display: flex;
+  justify-content: center;
+}
+.appt-badge.completed {
+  background: rgba(81, 193, 138, 0.15);
+  border-color: #51c18a;
+  color: #51c18a;
+}
+.appt-badge.cancelled {
+  background: rgba(120, 120, 120, 0.15);
+  border-color: #555;
+  color: #888;
+}
+
+.aac-actions-col {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.danger-outline {
+  color: #d98080 !important;
+  border-color: rgba(217, 128, 128, 0.3) !important;
+}
+.danger-outline:hover {
+  border-color: #d98080 !important;
+  background: rgba(217, 128, 128, 0.1) !important;
+}
+
+/* Receipt Modal Content */
+.receipt-modal-content {
+  padding: 10px 0;
+}
+.receipt-brand {
+  text-align: center;
+  font-family: 'Playfair Display', serif;
+  font-size: 20px;
+  letter-spacing: 3px;
+  margin-bottom: 16px;
+}
+.receipt-brand span { color: var(--gold); }
+.receipt-status-banner {
+  background: #161814;
+  border: 1px solid var(--gold);
+  padding: 12px 16px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.receipt-status-banner strong {
+  display: block;
+  font-size: 13px;
+  color: var(--gold);
+}
+.receipt-status-banner small {
+  font-size: 11px;
+  color: #888;
+}
+.receipt-details-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: 1px dashed var(--line);
+  border-bottom: 1px dashed var(--line);
+  padding: 16px 0;
+}
+.rd-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+.rd-item span { color: #888; }
+.rd-item strong { color: #eee; }
+.rd-item.total-row {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #252525;
+}
+.total-gold {
+  color: var(--gold) !important;
+  font-size: 16px !important;
+  font-family: 'Playfair Display', serif;
+}
+
+@media (max-width:1050px) {
+  .admin-appt-card {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .aac-payment-col { text-align: left; }
+  .aac-actions-col { grid-column: 1 / -1; justify-content: flex-start; }
+}
+
 @media (max-width:900px) {
   .client-layout { grid-template-columns:1fr; }
   .client-order-panel { min-height:auto; position:static; }
   .profile-edit-layout { grid-template-columns:1fr; }
   .time-slots-grid { grid-template-columns: repeat(3, 1fr); }
   .pfield-row { grid-template-columns: 1fr; }
+  .admin-appt-card { grid-template-columns: 1fr; }
 }
 

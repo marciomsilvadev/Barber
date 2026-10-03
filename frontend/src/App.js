@@ -3,7 +3,8 @@ import "@/App.css";
 import {
   CalendarDays, Camera, ChevronRight, Clock3, CreditCard, Edit2, LogOut, MapPin,
   QrCode, Scissors, ShieldCheck, Star, Trash2, User, X, ShoppingBag, Plus, Play, Check,
-  Lock, CheckCircle2, Copy, Calendar, Clock, AlertCircle
+  Lock, CheckCircle2, Copy, Calendar, Clock, AlertCircle, DollarSign, CalendarCheck,
+  Bell, Printer, Search
 } from "lucide-react";
 import { BrowserRouter } from "react-router-dom";
 import { supabase } from "./lib/supabase";
@@ -236,7 +237,29 @@ function LandingPage({ onEnterApp }) {
 // ADMIN PANEL (Products, Services, Barbers)
 // -----------------------------------------------------------------------------
 function AdminApp({ user, onLogout }) {
-  const [activeTab, setActiveTab] = useState("barbers");
+  const [activeTab, setActiveTab] = useState("appointments");
+  const [liveCount, setLiveCount] = useState(0);
+
+  useEffect(() => {
+    function calculateCount() {
+      try {
+        const stored = JSON.parse(localStorage.getItem('barber_all_appointments') || '[]');
+        const active = stored.filter(a => a.status === 'Confirmado' || a.payment_status === 'Pago');
+        setLiveCount(active.length);
+      } catch {}
+    }
+    calculateCount();
+
+    function onNew() {
+      calculateCount();
+    }
+    window.addEventListener('barber_new_appointment', onNew);
+    window.addEventListener('storage', onNew);
+    return () => {
+      window.removeEventListener('barber_new_appointment', onNew);
+      window.removeEventListener('storage', onNew);
+    };
+  }, []);
 
   return (
     <div className="app-shell">
@@ -244,6 +267,10 @@ function AdminApp({ user, onLogout }) {
         <div className="brand-mark">ATELIER<span>BARBER</span></div>
         <div className="location"><ShieldCheck size={14} /> ADMIN</div>
         <nav>
+          <button className={activeTab === "appointments" ? "active" : ""} onClick={() => setActiveTab("appointments")}>
+            <CalendarCheck size={18} />Agendamentos & Caixa
+            {liveCount > 0 && <span className="nav-badge-gold">{liveCount}</span>}
+          </button>
           <button className={activeTab === "barbers" ? "active" : ""} onClick={() => setActiveTab("barbers")}><Scissors size={18} />Equipe</button>
           <button className={activeTab === "services" ? "active" : ""} onClick={() => setActiveTab("services")}><CalendarDays size={18} />Serviços</button>
           <button className={activeTab === "products" ? "active" : ""} onClick={() => setActiveTab("products")}><ShoppingBag size={18} />Produtos (Loja)</button>
@@ -258,8 +285,9 @@ function AdminApp({ user, onLogout }) {
       </aside>
       <main className="main-content">
         <header className="topbar">
-          <div><div className="eyebrow">PAINEL</div><h2>Gestão do Atelier.</h2></div>
+          <div><div className="eyebrow">PAINEL EXECUTIVO</div><h2>Gestão do Atelier.</h2></div>
         </header>
+        {activeTab === "appointments" && <AdminAppointments user={user} />}
         {activeTab === "barbers" && <AdminBarbers user={user} />}
         {activeTab === "services" && <AdminServices user={user} />}
         {activeTab === "products" && <AdminProducts user={user} />}
@@ -1135,6 +1163,360 @@ function AdminProducts({ user }) {
   );
 }
 
+// ── Admin Appointments & Cash Flow Manager ──────────────────────────────────
+function AdminAppointments({ user }) {
+  const [appointments, setAppointments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filterStatus, setFilterStatus] = useState('Todos');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedReceipt, setSelectedReceipt] = useState(null);
+  const [toastNotification, setToastNotification] = useState(null);
+
+  const loadAppointments = useCallback(async () => {
+    setLoading(true);
+    let dbAppts = [];
+    try {
+      let query = supabase
+        .from('appointments')
+        .select('*, barbers(name, image), user_profiles(full_name)')
+        .order('created_at', { ascending: false });
+      if (user.tenant_id) query = query.eq('tenant_id', user.tenant_id);
+      const { data, error } = await query;
+      if (!error && data) dbAppts = data;
+    } catch (err) {
+      console.warn('DB load notice:', err);
+    }
+
+    let localAppts = [];
+    try {
+      localAppts = JSON.parse(localStorage.getItem('barber_all_appointments') || '[]');
+    } catch {}
+
+    // Merge DB and local storage records seamlessly
+    const map = new Map();
+    localAppts.forEach(a => map.set(a.id, a));
+    dbAppts.forEach(a => {
+      const local = map.get(a.id);
+      map.set(a.id, {
+        ...local,
+        ...a,
+        client_name: a.user_profiles?.full_name || local?.client_name || 'Cliente Atelier',
+        barber_name: a.barbers?.name || local?.barber_name || 'Profissional Atelier',
+        payment_method: local?.payment_method || (a.payment_status === 'Pago' ? 'Pagamento Aprovado' : 'Pendente'),
+      });
+    });
+
+    const list = Array.from(map.values()).sort((a, b) => {
+      const timeA = new Date(a.created_at || a.date).getTime();
+      const timeB = new Date(b.created_at || b.date).getTime();
+      return timeB - timeA;
+    });
+
+    setAppointments(list);
+    setLoading(false);
+  }, [user.tenant_id]);
+
+  useEffect(() => {
+    loadAppointments();
+
+    function handleNewAppt(e) {
+      const appt = e.detail;
+      if (appt) {
+        setToastNotification({
+          title: 'Novo Pagamento & Agendamento Recebido!',
+          client: appt.client_name || 'Cliente',
+          service: appt.service_type || appt.service_name || 'Serviço',
+          barber: appt.barber_name || 'Profissional Atelier',
+          date: appt.date ? appt.date.split('-').reverse().join('/') : 'Data agendada',
+          time: appt.time || '10:00',
+          price: parseFloat(appt.price || 0).toFixed(2),
+          method: appt.payment_method || 'Pago',
+        });
+        loadAppointments();
+      }
+    }
+    window.addEventListener('barber_new_appointment', handleNewAppt);
+
+    function handleStorage(e) {
+      if (e.key === 'barber_all_appointments') {
+        loadAppointments();
+      }
+    }
+    window.addEventListener('storage', handleStorage);
+
+    const channel = supabase
+      .channel('admin_appointments_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, payload => {
+        loadAppointments();
+        if (payload.eventType === 'INSERT') {
+          setToastNotification({
+            title: 'Novo Pagamento Confirmado no Supabase!',
+            client: 'Cliente Atelier',
+            service: payload.new.service_type,
+            barber: 'Profissional Atelier',
+            date: payload.new.date ? payload.new.date.split('-').reverse().join('/') : '',
+            time: payload.new.time,
+            price: parseFloat(payload.new.price || 0).toFixed(2),
+            method: payload.new.payment_status === 'Pago' ? 'Pago' : 'Pendente',
+          });
+        }
+      })
+      .subscribe();
+
+    return () => {
+      window.removeEventListener('barber_new_appointment', handleNewAppt);
+      window.removeEventListener('storage', handleStorage);
+      supabase.removeChannel(channel);
+    };
+  }, [loadAppointments]);
+
+  async function updateAppointmentStatus(id, newStatus) {
+    try {
+      await supabase.from('appointments').update({ status: newStatus }).eq('id', id);
+    } catch {}
+    try {
+      const local = JSON.parse(localStorage.getItem('barber_all_appointments') || '[]');
+      const updated = local.map(a => a.id === id ? { ...a, status: newStatus } : a);
+      localStorage.setItem('barber_all_appointments', JSON.stringify(updated));
+    } catch {}
+    loadAppointments();
+  }
+
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  const paidAppts = appointments.filter(a => a.payment_status === 'Pago');
+  const totalRevenue = paidAppts.reduce((sum, a) => sum + (parseFloat(a.price) || 0), 0);
+  const todayAppts = appointments.filter(a => a.date === todayStr);
+  const todayRevenue = todayAppts.filter(a => a.payment_status === 'Pago').reduce((sum, a) => sum + (parseFloat(a.price) || 0), 0);
+  const confirmedCount = appointments.filter(a => a.status === 'Confirmado').length;
+  const completedCount = appointments.filter(a => a.status === 'Concluído').length;
+
+  const filteredAppointments = appointments.filter(a => {
+    if (filterStatus === 'Hoje' && a.date !== todayStr) return false;
+    if (filterStatus === 'Pago' && a.payment_status !== 'Pago') return false;
+    if (filterStatus === 'Concluído' && a.status !== 'Concluído') return false;
+    if (filterStatus === 'Cancelado' && a.status !== 'Cancelado') return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchClient = (a.client_name || '').toLowerCase().includes(q);
+      const matchBarber = (a.barber_name || '').toLowerCase().includes(q);
+      const matchService = (a.service_type || '').toLowerCase().includes(q);
+      if (!matchClient && !matchBarber && !matchService) return false;
+    }
+    return true;
+  });
+
+  return (
+    <section className="admin-view fade-in">
+      {/* Live Toast Notification Banner */}
+      {toastNotification && (
+        <div className="admin-live-banner slide-up">
+          <div className="alb-left">
+            <div className="alb-icon-pulse"><Bell size={18} color="var(--black)"/></div>
+            <div>
+              <strong>{toastNotification.title}</strong>
+              <p>
+                <strong>{toastNotification.client}</strong> pagou <strong>R$ {toastNotification.price}</strong> via {toastNotification.method} para <strong>{toastNotification.service}</strong> com {toastNotification.barber} em {toastNotification.date} às {toastNotification.time}.
+              </p>
+            </div>
+          </div>
+          <button className="alb-close-btn" onClick={() => setToastNotification(null)}><X size={16}/></button>
+        </div>
+      )}
+
+      {/* KPI Cards */}
+      <div className="admin-kpi-grid">
+        <div className="admin-kpi-card gold-border">
+          <div className="kpi-icon-wrap"><DollarSign size={22} color="var(--gold)"/></div>
+          <div>
+            <span className="kpi-label">FATURAMENTO CONFIRMADO</span>
+            <strong className="kpi-value">R$ {totalRevenue.toFixed(2)}</strong>
+            <span className="kpi-sub">{paidAppts.length} pagamentos aprovados</span>
+          </div>
+        </div>
+
+        <div className="admin-kpi-card">
+          <div className="kpi-icon-wrap"><CalendarCheck size={22} color="var(--gold)"/></div>
+          <div>
+            <span className="kpi-label">AGENDAMENTOS HOJE</span>
+            <strong className="kpi-value">{todayAppts.length}</strong>
+            <span className="kpi-sub">R$ {todayRevenue.toFixed(2)} previsto hoje</span>
+          </div>
+        </div>
+
+        <div className="admin-kpi-card">
+          <div className="kpi-icon-wrap"><CheckCircle2 size={22} color="var(--gold)"/></div>
+          <div>
+            <span className="kpi-label">RESERVAS ATIVAS</span>
+            <strong className="kpi-value">{confirmedCount}</strong>
+            <span className="kpi-sub">{completedCount} atendimentos concluídos</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Filter and Search Bar */}
+      <div className="admin-toolbar" style={{marginTop:24}}>
+        <div className="category-filter-row" style={{marginBottom:0}}>
+          {['Todos', 'Hoje', 'Pago', 'Concluído', 'Cancelado'].map(st => (
+            <button
+              key={st}
+              className={`cat-pill ${filterStatus === st ? 'active' : ''}`}
+              onClick={() => setFilterStatus(st)}
+            >
+              {st} {st === 'Todos' ? `(${appointments.length})` : st === 'Hoje' ? `(${todayAppts.length})` : ''}
+            </button>
+          ))}
+        </div>
+
+        <div className="admin-search-box">
+          <Search size={15} color="#888"/>
+          <input
+            placeholder="Buscar por cliente, barbeiro ou serviço..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} className="search-clear"><X size={13}/></button>
+          )}
+        </div>
+      </div>
+
+      {/* Appointments List */}
+      <div style={{marginTop:20}}>
+        {loading ? (
+          <div style={{color:'#888', padding:40, textAlign:'center'}}>Sincronizando agendamentos e pagamentos...</div>
+        ) : filteredAppointments.length === 0 ? (
+          <div className="premium-empty" style={{marginTop:20}}>
+            <CalendarCheck size={36} opacity={0.2}/>
+            <p>Nenhum agendamento encontrado para este filtro.</p>
+          </div>
+        ) : (
+          <div className="admin-appt-list">
+            {filteredAppointments.map(a => {
+              const isToday = a.date === todayStr;
+              return (
+                <div key={a.id} className={`admin-appt-card ${isToday ? 'is-today' : ''}`}>
+                  {/* Date & Time Column */}
+                  <div className="aac-date-col">
+                    {isToday && <span className="today-badge">HOJE</span>}
+                    <strong className="aac-time">{a.time || '10:00'}</strong>
+                    <span className="aac-date">
+                      {a.date ? a.date.split('-').reverse().join('/') : 'Data a definir'}
+                    </span>
+                  </div>
+
+                  {/* Client Info */}
+                  <div className="aac-client-col">
+                    <div className="aac-avatar">{a.client_name?.[0] || 'C'}</div>
+                    <div>
+                      <strong className="aac-client-name">{a.client_name || 'Cliente Atelier'}</strong>
+                      <span className="aac-client-email">{a.client_email || 'Cliente Membro'}</span>
+                    </div>
+                  </div>
+
+                  {/* Service & Barber */}
+                  <div className="aac-service-col">
+                    <strong>{a.service_type || a.service_name || 'Serviço'}</strong>
+                    <span>Com {a.barber_name || 'Profissional Atelier'}</span>
+                  </div>
+
+                  {/* Payment Details */}
+                  <div className="aac-payment-col">
+                    <strong className="aac-price">R$ {parseFloat(a.price || 0).toFixed(2)}</strong>
+                    <div style={{display:'flex', gap:6, marginTop:4}}>
+                      <span className={`appt-badge ${a.payment_status === 'Pago' ? 'paid' : ''}`}>
+                        {a.payment_status === 'Pago' ? '✓ PAGO' : 'Pendente'}
+                      </span>
+                      <span className="payment-method-tag">{a.payment_method || 'Cartão'}</span>
+                    </div>
+                  </div>
+
+                  {/* Status Badge */}
+                  <div className="aac-status-col">
+                    <span className={`appt-badge ${a.status === 'Confirmado' ? 'confirmed' : a.status === 'Concluído' ? 'completed' : 'cancelled'}`}>
+                      {a.status}
+                    </span>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="aac-actions-col">
+                    {a.status === 'Confirmado' && (
+                      <button
+                        className="gold-button compact"
+                        style={{padding:'6px 12px', fontSize:11}}
+                        onClick={() => updateAppointmentStatus(a.id, 'Concluído')}
+                        title="Marcar como atendido"
+                      >
+                        <Check size={13}/> Concluir
+                      </button>
+                    )}
+                    {a.status !== 'Cancelado' && a.status !== 'Concluído' && (
+                      <button
+                        className="outline-button compact danger-outline"
+                        style={{padding:'6px 10px', fontSize:11}}
+                        onClick={() => {
+                          if (window.confirm('Deseja realmente cancelar este agendamento?')) {
+                            updateAppointmentStatus(a.id, 'Cancelado');
+                          }
+                        }}
+                      >
+                        Cancelar
+                      </button>
+                    )}
+                    <button
+                      className="outline-button compact"
+                      style={{padding:'6px 10px', fontSize:11}}
+                      onClick={() => setSelectedReceipt(a)}
+                      title="Ver Comprovante de Pagamento"
+                    >
+                      Recibo
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Receipt Modal */}
+      {selectedReceipt && (
+        <Modal title="Comprovante de Pagamento & Reserva" onClose={() => setSelectedReceipt(null)}>
+          <div className="receipt-modal-content">
+            <div className="receipt-brand">ATELIER<span>BARBER</span></div>
+            <div className="receipt-status-banner">
+              <CheckCircle2 size={24} color="var(--gold)"/>
+              <div>
+                <strong>PAGAMENTO CONFIRMADO</strong>
+                <small>Transação autorizada e registrada no Atelier</small>
+              </div>
+            </div>
+
+            <div className="receipt-details-list">
+              <div className="rd-item"><span>Código da Reserva:</span><strong>#{String(selectedReceipt.id).slice(0, 8).toUpperCase()}</strong></div>
+              <div className="rd-item"><span>Cliente:</span><strong>{selectedReceipt.client_name || 'Cliente'} {selectedReceipt.client_email ? `(${selectedReceipt.client_email})` : ''}</strong></div>
+              <div className="rd-item"><span>Serviço:</span><strong>{selectedReceipt.service_type || selectedReceipt.service_name}</strong></div>
+              <div className="rd-item"><span>Profissional:</span><strong>{selectedReceipt.barber_name}</strong></div>
+              <div className="rd-item"><span>Data e Horário:</span><strong>{selectedReceipt.date ? selectedReceipt.date.split('-').reverse().join('/') : ''} às {selectedReceipt.time}</strong></div>
+              <div className="rd-item"><span>Forma de Pagamento:</span><strong>{selectedReceipt.payment_method || 'Cartão'}</strong></div>
+              <div className="rd-item total-row"><span>Total Pago:</span><strong className="total-gold">R$ {parseFloat(selectedReceipt.price || 0).toFixed(2)}</strong></div>
+            </div>
+
+            <div style={{display:'flex', gap:10, marginTop:24}}>
+              <button className="gold-button" style={{flex:1}} onClick={() => window.print()}>
+                <Printer size={15}/> Imprimir Comprovante
+              </button>
+              <button className="outline-button" onClick={() => setSelectedReceipt(null)}>
+                Fechar
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </section>
+  );
+}
+
 // -----------------------------------------------------------------------------
 // CLIENT APP — Full Experience
 // -----------------------------------------------------------------------------
@@ -1440,13 +1822,29 @@ function PaymentModal({
         console.warn('DB insert notice:', dbErr.message);
       }
 
-      setConfirmedAppt({
+      const enrichedAppt = {
         ...apptRecord,
         id: inserted?.id || String(Date.now()),
+        client_name: user.full_name || user.email?.split('@')[0] || 'Cliente Atelier',
+        client_email: user.email || '',
         barber_name: barberSelected?.name || 'Profissional Atelier',
-      });
+        service_name: selected.name,
+        payment_method: payMode === 'card' ? `Cartão (${parcelas}x)` : 'PIX Instantâneo',
+        created_at: new Date().toISOString(),
+      };
+
+      try {
+        const stored = JSON.parse(localStorage.getItem('barber_all_appointments') || '[]');
+        const updated = [enrichedAppt, ...stored.filter(a => a.id !== enrichedAppt.id)];
+        localStorage.setItem('barber_all_appointments', JSON.stringify(updated));
+        window.dispatchEvent(new CustomEvent('barber_new_appointment', { detail: enrichedAppt }));
+      } catch (e) {
+        console.warn('Local appointment sync notice:', e);
+      }
+
+      setConfirmedAppt(enrichedAppt);
       setIsSuccess(true);
-      if (onSuccessAppointment) onSuccessAppointment(inserted || apptRecord);
+      if (onSuccessAppointment) onSuccessAppointment(inserted || enrichedAppt);
     } catch (err) {
       setErrorMsg('Falha ao processar pagamento. Tente novamente.');
     } finally {
